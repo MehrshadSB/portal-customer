@@ -147,4 +147,88 @@ describe('Tenant Isolation, RBAC & Audit Trail (Integration)', () => {
     expect(actions).toContain('customer.created');
     expect(actions).toContain('role.permissions_updated');
   });
+
+  it('enforces localization setup permissions, public read defaults, and user locale updates', async () => {
+    const publicRes = await request(ctx.app.getHttpServer())
+      .get('/api/v1/settings/localization')
+      .expect(200);
+
+    expect(publicRes.body.data.defaultLocale).toBe('fa');
+    expect(publicRes.body.data.calendarType).toBe('jalali');
+    expect(publicRes.body.data.enabledLocales).toEqual(['fa', 'en']);
+
+    const supportSession = await loginAs(ctx.app, 'admin', 'support@test.local');
+    const adminSession = await loginAs(ctx.app, 'admin', 'admin@test.local');
+
+    // Support agent lacks system_settings:manage permission -> 403
+    await request(ctx.app.getHttpServer())
+      .patch('/api/v1/settings/localization')
+      .set('X-App-Surface', 'admin')
+      .set('Cookie', supportSession.cookieHeader)
+      .set('X-CSRF-Token', supportSession.csrfToken)
+      .send({
+        defaultLocale: 'en',
+        enabledLocales: ['fa', 'en'],
+        calendarType: 'gregorian',
+        brandNameFa: 'آذرپارت صنعت',
+        brandNameEn: 'AzarPart Mfg',
+      })
+      .expect(403);
+
+    // Admin updates platform localization settings -> 200 & audited
+    const updateRes = await request(ctx.app.getHttpServer())
+      .patch('/api/v1/settings/localization')
+      .set('X-App-Surface', 'admin')
+      .set('Cookie', adminSession.cookieHeader)
+      .set('X-CSRF-Token', adminSession.csrfToken)
+      .send({
+        defaultLocale: 'en',
+        enabledLocales: ['fa', 'en'],
+        calendarType: 'gregorian',
+        brandNameFa: 'آذرپارت صنعت نوین',
+        brandNameEn: 'AzarPart Mfg Co',
+      })
+      .expect(200);
+
+    expect(updateRes.body.data.defaultLocale).toBe('en');
+    expect(updateRes.body.data.calendarType).toBe('gregorian');
+    expect(updateRes.body.data.brandNameEn).toBe('AzarPart Mfg Co');
+
+    const verifyPublicRes = await request(ctx.app.getHttpServer())
+      .get('/api/v1/settings/localization')
+      .expect(200);
+    expect(verifyPublicRes.body.data.defaultLocale).toBe('en');
+
+    const auditRes = await request(ctx.app.getHttpServer())
+      .get('/api/v1/audit-logs?limit=20')
+      .set('X-App-Surface', 'admin')
+      .set('Cookie', adminSession.cookieHeader)
+      .expect(200);
+    const actions = (auditRes.body.data as Array<{ action: string }>).map((a) => a.action);
+    expect(actions).toContain('settings.localization_updated');
+
+    // User profile locale updates persist to session context
+    const custSession = await loginAs(ctx.app, 'portal', 'admin@apex.test');
+    const meBefore = await request(ctx.app.getHttpServer())
+      .get('/api/v1/auth/me')
+      .set('X-App-Surface', 'portal')
+      .set('Cookie', custSession.cookieHeader)
+      .expect(200);
+    expect(meBefore.body.data.locale).toBe('fa');
+
+    await request(ctx.app.getHttpServer())
+      .patch('/api/v1/profile')
+      .set('X-App-Surface', 'portal')
+      .set('Cookie', custSession.cookieHeader)
+      .set('X-CSRF-Token', custSession.csrfToken)
+      .send({ locale: 'en' })
+      .expect(200);
+
+    const meAfter = await request(ctx.app.getHttpServer())
+      .get('/api/v1/auth/me')
+      .set('X-App-Surface', 'portal')
+      .set('Cookie', custSession.cookieHeader)
+      .expect(200);
+    expect(meAfter.body.data.locale).toBe('en');
+  });
 });

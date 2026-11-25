@@ -81,14 +81,14 @@ export function I18nProvider({
     en: getDictionary('en').meta.portalTitle,
   });
 
+  const initialLocaleRef = React.useRef(initialLocale);
+
   React.useEffect(() => {
     const cookieLocale = readLocaleCookie();
-    if (cookieLocale && cookieLocale !== locale) {
+    if (cookieLocale && cookieLocale !== initialLocaleRef.current) {
       setLocaleState(cookieLocale);
       setCalendarType(cookieLocale === 'fa' ? 'jalali' : 'gregorian');
     }
-    // Run once on client mount to sync cookie preference
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const dir = getDirection(locale);
