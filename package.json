@@ -1,0 +1,35 @@
+{
+  "name": "customer-portal",
+  "private": true,
+  "packageManager": "pnpm@10.24.0",
+  "engines": {
+    "node": ">=24.0.0",
+    "pnpm": ">=10.0.0"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json,css,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,md,json,css,yml,yaml}\"",
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down",
+    "db:generate": "pnpm --filter @portal/api db:generate",
+    "db:migrate": "pnpm --filter @portal/api db:migrate",
+    "db:seed": "pnpm --filter @portal/api db:seed",
+    "db:studio": "pnpm --filter @portal/api db:studio"
+  },
+  "devDependencies": {
+    "prettier": "^3.5.3",
+    "turbo": "^2.5.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@swc/core",
+      "argon2",
+      "esbuild"
+    ]
+  }
+}
