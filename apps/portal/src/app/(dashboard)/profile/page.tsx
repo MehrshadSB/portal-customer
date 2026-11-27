@@ -52,7 +52,9 @@ export default function PortalProfilePage() {
     } catch (err) {
       const code =
         typeof err === 'object' && err !== null && 'code' in err ? String(err.code) : undefined;
-      setErrorMsg(translateError(code, err instanceof Error ? err.message : 'Unable to save profile'));
+      setErrorMsg(
+        translateError(code, err instanceof Error ? err.message : 'Unable to save profile'),
+      );
     }
   };
 
@@ -74,8 +76,8 @@ export default function PortalProfilePage() {
 
       {errorMsg ? <AlertBanner tone="crimson">{errorMsg}</AlertBanner> : null}
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
+      <div className="grid gap-6 lg:grid-cols-12">
+        <Card className="lg:col-span-8">
           <CardHeader>
             <CardTitle>{t.portal.profile.personalTitle}</CardTitle>
             <CardDescription>{t.portal.profile.personalDesc}</CardDescription>
@@ -84,20 +86,28 @@ export default function PortalProfilePage() {
             <form onSubmit={profileForm.handleSubmit(onSaveProfile)} className="space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="fullName">{t.common.fullName}</Label>
-                <Input id="fullName" {...profileForm.register('fullName')} />
+                <Input
+                  id="fullName"
+                  aria-invalid={Boolean(profileForm.formState.errors.fullName)}
+                  aria-describedby="fullName-err"
+                  {...profileForm.register('fullName')}
+                />
+                <p id="fullName-err" className="min-h-[1lh] text-xs text-[var(--color-signal-crimson)]">
+                  {profileForm.formState.errors.fullName?.message ?? ''}
+                </p>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label>{t.common.phone}</Label>
-                  <Input value={user?.phone ?? '—'} dir="ltr" disabled />
+                  <Input value={user?.phone ?? '-'} dir="ltr" disabled />
                 </div>
                 <div className="space-y-1.5">
                   <Label>{t.common.email}</Label>
-                  <Input value={user?.email ?? '—'} dir="ltr" disabled />
+                  <Input value={user?.email ?? '-'} dir="ltr" disabled />
                 </div>
               </div>
-              <p className="text-[11px] text-[var(--ink-muted)]">
+              <p className="text-xs text-[var(--color-muted)]">
                 {t.portal.profile.phoneManagedNotice}
               </p>
 
@@ -114,7 +124,16 @@ export default function PortalProfilePage() {
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="timezone">{t.common.timezone}</Label>
-                  <Input id="timezone" dir="ltr" {...profileForm.register('timezone')} />
+                  <Input
+                    id="timezone"
+                    dir="ltr"
+                    aria-invalid={Boolean(profileForm.formState.errors.timezone)}
+                    aria-describedby="timezone-err"
+                    {...profileForm.register('timezone')}
+                  />
+                  <p id="timezone-err" className="min-h-[1lh] text-xs text-[var(--color-signal-crimson)]">
+                    {profileForm.formState.errors.timezone?.message ?? ''}
+                  </p>
                 </div>
               </div>
 
@@ -126,13 +145,15 @@ export default function PortalProfilePage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="lg:col-span-4 border-[var(--color-signal-crimson-border)]">
           <CardHeader>
             <CardTitle>{t.portal.profile.sessionsCardTitle}</CardTitle>
             <CardDescription>{t.portal.profile.sessionsCardDesc}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <p className="text-xs text-[var(--ink-muted)]">{t.portal.profile.sessionsCardBody}</p>
+            <p className="text-xs leading-relaxed text-[var(--color-muted)]">
+              {t.portal.profile.sessionsCardBody}
+            </p>
             <Button type="button" variant="destructive" size="sm" onClick={handleLogoutAll}>
               {t.common.signOutAll}
             </Button>

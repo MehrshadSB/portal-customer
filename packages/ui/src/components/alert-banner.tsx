@@ -1,16 +1,27 @@
 import type { WorkflowColorToken } from '@portal/types';
+import { AlertCircle, AlertTriangle, CheckCircle2, Info } from 'lucide-react';
 import * as React from 'react';
 import { cn } from '../lib/cn';
 
 const BANNER_TONES: Record<WorkflowColorToken, string> = {
-  slate: 'border-[var(--border-hairline)] bg-[var(--bg-subtle)] text-[var(--ink-primary)]',
-  cobalt: 'border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-100',
+  slate:
+    'border-[var(--color-signal-slate-border)] bg-[var(--color-signal-slate-bg)] text-[var(--color-ink)]',
+  cobalt:
+    'border-[var(--color-signal-cobalt-border)] bg-[var(--color-signal-cobalt-bg)] text-[var(--color-signal-cobalt)]',
   amber:
-    'border-amber-200 bg-[var(--signal-amber-surface)] text-amber-950 dark:border-amber-800 dark:text-amber-100',
+    'border-[var(--color-signal-amber-border)] bg-[var(--color-signal-amber-bg)] text-[var(--color-signal-amber)]',
   emerald:
-    'border-emerald-200 bg-[var(--signal-emerald-surface)] text-emerald-950 dark:border-emerald-800 dark:text-emerald-100',
+    'border-[var(--color-signal-emerald-border)] bg-[var(--color-signal-emerald-bg)] text-[var(--color-signal-emerald)]',
   crimson:
-    'border-red-200 bg-[var(--signal-crimson-surface)] text-red-950 dark:border-red-800 dark:text-red-100',
+    'border-[var(--color-signal-crimson-border)] bg-[var(--color-signal-crimson-bg)] text-[var(--color-signal-crimson)]',
+};
+
+const BANNER_ICONS: Record<WorkflowColorToken, React.ReactNode> = {
+  slate: <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />,
+  cobalt: <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />,
+  amber: <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />,
+  emerald: <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />,
+  crimson: <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />,
 };
 
 export interface AlertBannerProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -28,11 +39,18 @@ export function AlertBanner({
   return (
     <div
       role="alert"
-      className={cn('rounded-md border px-3.5 py-2.5 text-xs', BANNER_TONES[tone], className)}
+      className={cn(
+        'flex items-start gap-2.5 rounded-[var(--radius-card)] border px-3.5 py-2.5 text-xs leading-relaxed',
+        BANNER_TONES[tone],
+        className,
+      )}
       {...props}
     >
-      {title ? <p className="mb-0.5 font-semibold">{title}</p> : null}
-      <div>{children}</div>
+      {BANNER_ICONS[tone]}
+      <div className="min-w-0 flex-1">
+        {title ? <p className="mb-0.5 font-semibold text-[var(--color-ink)]">{title}</p> : null}
+        <div className="text-[var(--color-ink)]">{children}</div>
+      </div>
     </div>
   );
 }

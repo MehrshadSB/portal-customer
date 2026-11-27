@@ -2,31 +2,17 @@ import type { WorkflowColorToken } from '@portal/types';
 import * as React from 'react';
 import { cn } from '../lib/cn';
 
-const TOKEN_STYLES: Record<WorkflowColorToken, { container: string; dot: string }> = {
-  slate: {
-    container:
-      'bg-[var(--signal-slate-surface)] text-[var(--signal-slate)] border-[var(--border-hairline)]',
-    dot: 'bg-[var(--signal-slate)]',
-  },
-  cobalt: {
-    container: 'bg-blue-50 text-[var(--accent-cobalt)] border-blue-200 dark:bg-blue-950/50 dark:border-blue-800',
-    dot: 'bg-[var(--accent-cobalt)]',
-  },
-  amber: {
-    container:
-      'bg-[var(--signal-amber-surface)] text-[var(--signal-amber)] border-amber-200 dark:border-amber-800',
-    dot: 'bg-[var(--signal-amber)]',
-  },
-  emerald: {
-    container:
-      'bg-[var(--signal-emerald-surface)] text-[var(--signal-emerald)] border-emerald-200 dark:border-emerald-800',
-    dot: 'bg-[var(--signal-emerald)]',
-  },
-  crimson: {
-    container:
-      'bg-[var(--signal-crimson-surface)] text-[var(--signal-crimson)] border-red-200 dark:border-red-800',
-    dot: 'bg-[var(--signal-crimson)]',
-  },
+const TOKEN_STYLES: Record<WorkflowColorToken, string> = {
+  slate:
+    'border-[var(--color-signal-slate-border)] bg-[var(--color-signal-slate-bg)] text-[var(--color-signal-slate)]',
+  cobalt:
+    'border-[var(--color-signal-cobalt-border)] bg-[var(--color-signal-cobalt-bg)] text-[var(--color-signal-cobalt)]',
+  amber:
+    'border-[var(--color-signal-amber-border)] bg-[var(--color-signal-amber-bg)] text-[var(--color-signal-amber)]',
+  emerald:
+    'border-[var(--color-signal-emerald-border)] bg-[var(--color-signal-emerald-bg)] text-[var(--color-signal-emerald)]',
+  crimson:
+    'border-[var(--color-signal-crimson-border)] bg-[var(--color-signal-crimson-bg)] text-[var(--color-signal-crimson)]',
 };
 
 export interface StatusBadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
@@ -42,18 +28,16 @@ export function StatusBadge({
   className,
   ...props
 }: StatusBadgeProps) {
-  const style = TOKEN_STYLES[tone];
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-medium',
+        'inline-flex items-center whitespace-nowrap rounded-[var(--radius-input)] border px-2 py-0.5 text-xs font-medium leading-tight',
         mono && 'font-mono-tabular',
-        style.container,
+        TOKEN_STYLES[tone],
         className,
       )}
       {...props}
     >
-      <span aria-hidden="true" className={cn('h-1.5 w-1.5 rounded-full', style.dot)} />
       {label}
     </span>
   );

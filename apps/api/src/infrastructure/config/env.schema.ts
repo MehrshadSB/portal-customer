@@ -45,6 +45,7 @@ export const envSchema = z
     OTP_HMAC_SECRET: z.string().min(32).default(DEV_OTP_HMAC_FALLBACK),
 
     S3_ENDPOINT: z.string().url().default('http://localhost:9010'),
+    S3_PUBLIC_ENDPOINT: z.string().url().optional().or(z.literal('')),
     S3_REGION: z.string().min(1).default('us-east-1'),
     S3_BUCKET: z.string().min(1).default('portal-attachments'),
     S3_ACCESS_KEY: z.string().min(1).default('rustfsadmin'),

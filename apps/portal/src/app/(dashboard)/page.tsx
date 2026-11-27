@@ -3,6 +3,8 @@
 import { useI18n } from '@portal/i18n/react';
 import type { CustomerDto, OrderDto, TicketDto } from '@portal/types';
 import {
+  AlertBanner,
+  Button,
   Card,
   CardContent,
   CardDescription,
@@ -10,17 +12,19 @@ import {
   CardTitle,
   EmptyState,
   PageHeader,
+  SkeletonStatStrip,
+  SkeletonTable,
   StatusBadge,
 } from '@portal/ui';
 import { useQuery } from '@tanstack/react-query';
-import { FileText, LifeBuoy } from 'lucide-react';
+import { FileText, LifeBuoy, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { usePortalSession } from '@/hooks/use-portal-session';
 import { portalApi } from '@/lib/api';
 
 export default function CustomerPortalHomePage() {
   const { user } = usePortalSession(false);
-  const { t, formatDate, formatNumber, interpolate, translateStatus } = useI18n();
+  const { t, formatDate, formatNumber, interpolate, translateError, translateStatus } = useI18n();
 
   const companyQuery = useQuery({
     queryKey: ['portal', 'my-company'],
@@ -46,13 +50,14 @@ export default function CustomerPortalHomePage() {
   const tickets = ticketsQuery.data?.data ?? [];
   const ticketsTotal = ticketsQuery.data?.meta?.total ?? tickets.length;
 
+  const firstError = companyQuery.error ?? ordersQuery.error ?? ticketsQuery.error;
+  const isStripLoading = companyQuery.isLoading || ordersQuery.isLoading || ticketsQuery.isLoading;
+
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow={
-          company
-            ? `${company.customerCode} · ${t.portal.overview.eyebrow}`
-            : t.portal.overview.eyebrow
+          company ? `${company.customerCode}: ${t.portal.overview.eyebrow}` : t.portal.overview.eyebrow
         }
         title={
           company
@@ -61,100 +66,157 @@ export default function CustomerPortalHomePage() {
         }
         description={t.portal.overview.description}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {company ? (
               <StatusBadge
                 label={translateStatus(company.status)}
                 tone={company.status === 'active' ? 'emerald' : 'amber'}
               />
             ) : null}
-            <Link
-              href="/tickets/new"
-              className="inline-flex h-8 items-center rounded-md bg-[var(--accent-cobalt)] px-3 text-xs font-medium text-white hover:bg-[var(--accent-cobalt-hover)]"
-            >
+            <Link href="/tickets/new" className="app-btn app-btn-primary h-8 px-3 text-xs">
+              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
               {t.tickets.newTicket}
             </Link>
           </div>
         }
       />
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle>{t.portal.overview.activeOrdersCard}</CardTitle>
-            <CardDescription>{t.portal.overview.recentOrdersDesc}</CardDescription>
-          </CardHeader>
-          <CardContent className="flex items-end justify-between">
-            <span className="font-mono-tabular text-2xl font-semibold">
-              {formatNumber(ordersTotal)}
+      {firstError ? (
+        <AlertBanner tone="crimson">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span>
+              {translateError(
+                typeof firstError === 'object' && firstError !== null && 'code' in firstError
+                  ? String(firstError.code)
+                  : undefined,
+                firstError instanceof Error ? firstError.message : t.common.noData,
+              )}
             </span>
-            <Link href="/orders" className="text-xs text-[var(--accent-cobalt)] hover:underline">
-              {t.portal.overview.viewAllOrders}
-            </Link>
-          </CardContent>
-        </Card>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                void companyQuery.refetch();
+                void ordersQuery.refetch();
+                void ticketsQuery.refetch();
+              }}
+            >
+              {t.common.retry}
+            </Button>
+          </div>
+        </AlertBanner>
+      ) : null}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{t.portal.overview.openTicketsCard}</CardTitle>
-            <CardDescription>{t.tickets.portalDescription}</CardDescription>
-          </CardHeader>
-          <CardContent className="flex items-end justify-between">
-            <span className="font-mono-tabular text-2xl font-semibold">
-              {formatNumber(ticketsTotal)}
-            </span>
-            <Link href="/tickets" className="text-xs text-[var(--accent-cobalt)] hover:underline">
-              {t.portal.overview.viewAllTickets}
-            </Link>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>{t.portal.overview.accountCardTitle}</CardTitle>
-            <CardDescription>{t.portal.overview.accountCardDesc}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-1.5 text-xs">
-            <div className="flex justify-between">
-              <span className="text-[var(--ink-muted)]">{t.portal.overview.companyCode}</span>
-              <span dir="ltr" className="font-mono-tabular font-medium">
-                {company?.customerCode ?? '—'}
+      {isStripLoading ? (
+        <SkeletonStatStrip items={3} />
+      ) : (
+        <section className="grid gap-px overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-rule)] bg-[var(--color-rule)] md:grid-cols-3">
+          <div className="flex flex-col justify-between gap-3 bg-[var(--color-cotton)] px-5 py-4">
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-[var(--color-muted)]">
+                {t.portal.overview.activeOrdersCard}
+              </p>
+              <p className="font-mono-tabular text-2xl font-semibold text-[var(--color-ink)]">
+                {formatNumber(ordersTotal)}
+              </p>
+            </div>
+            <div className="flex items-center justify-between gap-2 text-xs">
+              <span className="truncate text-[var(--color-muted)]">
+                {t.portal.overview.recentOrdersDesc}
               </span>
+              <Link
+                href="/orders"
+                className="shrink-0 font-medium text-[var(--color-accent-2)] hover:underline"
+              >
+                {t.portal.overview.viewAllOrders}
+              </Link>
             </div>
-            <div className="flex justify-between">
-              <span className="text-[var(--ink-muted)]">{t.portal.overview.accountManager}</span>
-              <span>{company?.accountManagerName ?? t.common.unassigned}</span>
+          </div>
+
+          <div className="flex flex-col justify-between gap-3 bg-[var(--color-cotton)] px-5 py-4">
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-[var(--color-muted)]">
+                {t.portal.overview.openTicketsCard}
+              </p>
+              <p className="font-mono-tabular text-2xl font-semibold text-[var(--color-ink)]">
+                {formatNumber(ticketsTotal)}
+              </p>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+            <div className="flex items-center justify-between gap-2 text-xs">
+              <span className="truncate text-[var(--color-muted)]">
+                {t.tickets.portalDescription}
+              </span>
+              <Link
+                href="/tickets"
+                className="shrink-0 font-medium text-[var(--color-accent-2)] hover:underline"
+              >
+                {t.portal.overview.viewAllTickets}
+              </Link>
+            </div>
+          </div>
+
+          <div className="flex flex-col justify-between gap-2 bg-[var(--color-cotton)] px-5 py-4">
+            <div>
+              <p className="text-xs font-medium text-[var(--color-muted)]">
+                {t.portal.overview.accountCardTitle}
+              </p>
+              <p className="text-xs text-[var(--color-muted)]">{t.portal.overview.accountCardDesc}</p>
+            </div>
+            <dl className="space-y-1 text-xs">
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-[var(--color-muted)]">{t.portal.overview.companyCode}</dt>
+                <dd className="font-mono-tabular font-medium text-[var(--color-ink)]">
+                  {company?.customerCode ? (
+                    <span dir="ltr" className="inline-block">
+                      {company.customerCode}
+                    </span>
+                  ) : (
+                    '-'
+                  )}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-[var(--color-muted)]">{t.portal.overview.accountManager}</dt>
+                <dd className="truncate font-medium text-[var(--color-ink)]">
+                  {company?.accountManagerName ?? t.common.unassigned}
+                </dd>
+              </div>
+            </dl>
+          </div>
+        </section>
+      )}
 
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <CardTitle>{t.portal.overview.recentOrdersTitle}</CardTitle>
               <CardDescription>{t.portal.overview.recentOrdersDesc}</CardDescription>
             </div>
-            <Link href="/orders" className="text-xs text-[var(--accent-cobalt)] hover:underline">
+            <Link
+              href="/orders"
+              className="text-xs font-medium text-[var(--color-accent-2)] hover:underline"
+            >
               {t.portal.overview.viewAllOrders}
             </Link>
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {orders.length === 0 ? (
-            <div className="p-6">
-              <EmptyState
-                icon={<FileText className="h-4 w-4" />}
-                title={t.orders.emptyTitle}
-                description={t.orders.emptyDesc}
-              />
-            </div>
+          {ordersQuery.isLoading ? (
+            <SkeletonTable rows={4} columns={5} />
+          ) : ordersQuery.isError ? null : orders.length === 0 ? (
+            <EmptyState
+              embedded
+              headingLevel="h3"
+              icon={<FileText className="h-4 w-4" />}
+              title={t.orders.emptyTitle}
+              description={t.orders.emptyDesc}
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-start text-xs">
                 <thead>
-                  <tr className="border-b border-[var(--border-hairline)] bg-[var(--bg-subtle)] text-[var(--ink-muted)]">
+                  <tr className="border-b border-[var(--color-rule)] bg-[var(--color-paper-2)] text-[var(--color-muted)]">
                     <th className="px-4 py-2.5 font-medium">{t.orders.orderNumber}</th>
                     <th className="px-4 py-2.5 font-medium">{t.tickets.subject}</th>
                     <th className="px-4 py-2.5 font-medium">{t.orders.currentStage}</th>
@@ -164,26 +226,29 @@ export default function CustomerPortalHomePage() {
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[var(--border-hairline)]">
+                <tbody className="divide-y divide-[var(--color-rule)]">
                   {orders.map((order) => (
-                    <tr key={order.id} className="hover:bg-[var(--bg-subtle)]/50">
+                    <tr
+                      key={order.id}
+                      className="transition-colors duration-[var(--dur-micro)] hover:bg-[var(--color-paper-2)]/60"
+                    >
                       <td className="px-4 py-2.5">
                         <Link
                           href={`/orders/${order.id}`}
                           dir="ltr"
-                          className="font-mono-tabular font-semibold text-[var(--accent-cobalt)] hover:underline"
+                          className="font-mono-tabular font-semibold text-[var(--color-accent-2)] hover:underline"
                         >
                           {order.orderNumber}
                         </Link>
                       </td>
-                      <td className="px-4 py-2.5 font-medium text-[var(--ink-primary)]">
+                      <td className="px-4 py-2.5 font-medium text-[var(--color-ink)]">
                         <Link href={`/orders/${order.id}`} className="hover:underline">
                           {order.title}
                         </Link>
                         {order.poNumber ? (
                           <span
                             dir="ltr"
-                            className="font-mono-tabular block text-[11px] font-normal text-[var(--ink-muted)]"
+                            className="font-mono-tabular block text-xs font-normal text-[var(--color-muted)]"
                           >
                             PO: {order.poNumber}
                           </span>
@@ -195,7 +260,7 @@ export default function CustomerPortalHomePage() {
                             label={order.currentStageName}
                             tone={order.currentStageColor}
                           />
-                          <span className="font-mono-tabular text-[11px] text-[var(--ink-muted)]">
+                          <span className="font-mono-tabular text-xs text-[var(--color-muted)]">
                             {interpolate(t.orders.stageStepOf, {
                               current: formatNumber(order.currentStageOrder),
                               total: formatNumber(order.totalVisibleStages),
@@ -217,10 +282,10 @@ export default function CustomerPortalHomePage() {
                           }
                         />
                       </td>
-                      <td className="font-mono-tabular px-4 py-2.5 text-end text-[var(--ink-muted)]">
+                      <td className="font-mono-tabular px-4 py-2.5 text-end text-[var(--color-muted)]">
                         {order.expectedCompletionDate
                           ? formatDate(order.expectedCompletionDate)
-                          : '—'}
+                          : '-'}
                       </td>
                     </tr>
                   ))}
@@ -233,19 +298,26 @@ export default function CustomerPortalHomePage() {
 
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <CardTitle>{t.tickets.title}</CardTitle>
               <CardDescription>{t.tickets.portalDescription}</CardDescription>
             </div>
-            <Link href="/tickets" className="text-xs text-[var(--accent-cobalt)] hover:underline">
+            <Link
+              href="/tickets"
+              className="text-xs font-medium text-[var(--color-accent-2)] hover:underline"
+            >
               {t.portal.overview.viewAllTickets}
             </Link>
           </div>
         </CardHeader>
-        <CardContent className="divide-y divide-[var(--border-hairline)]">
-          {tickets.length === 0 ? (
+        <CardContent className="divide-y divide-[var(--color-rule)] p-0">
+          {ticketsQuery.isLoading ? (
+            <SkeletonTable rows={3} columns={3} />
+          ) : ticketsQuery.isError ? null : tickets.length === 0 ? (
             <EmptyState
+              embedded
+              headingLevel="h3"
               icon={<LifeBuoy className="h-4 w-4" />}
               title={t.tickets.emptyTitle}
               description={t.tickets.emptyDesc}
@@ -255,20 +327,21 @@ export default function CustomerPortalHomePage() {
               <Link
                 key={tk.id}
                 href={`/tickets/${tk.id}`}
-                className="flex flex-wrap items-center justify-between gap-3 py-3 text-xs hover:bg-[var(--bg-subtle)]/40"
+                className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 text-xs transition-colors duration-[var(--dur-micro)] hover:bg-[var(--color-paper-2)]/60"
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <span dir="ltr" className="font-mono-tabular font-semibold text-[var(--accent-cobalt)]">
+                    <span
+                      dir="ltr"
+                      className="font-mono-tabular font-semibold text-[var(--color-accent-2)]"
+                    >
                       {tk.ticketNumber}
                     </span>
-                    <span className="truncate font-medium text-[var(--ink-primary)]">
-                      {tk.subject}
-                    </span>
+                    <span className="truncate font-medium text-[var(--color-ink)]">{tk.subject}</span>
                   </div>
-                  <p className="text-[11px] text-[var(--ink-muted)]">
+                  <p className="text-xs text-[var(--color-muted)]">
                     {tk.categoryName}
-                    {tk.orderNumber ? ` · ${tk.orderNumber}` : ''}
+                    {tk.orderNumber ? ` (${tk.orderNumber})` : ''}
                   </p>
                 </div>
                 <StatusBadge

@@ -14,7 +14,6 @@ import * as React from 'react';
 import { useForm } from 'react-hook-form';
 import { AlertBanner } from './alert-banner';
 import { Button } from './button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './card';
 import { Input, Label } from './input';
 import { LocaleSwitcher } from './locale-switcher';
 import { StatusBadge } from './status-badge';
@@ -28,29 +27,61 @@ interface SurfaceAuthHeaderProps {
 }
 
 export function AuthCardShell({
-  eyebrow,
+  eyebrow: _eyebrow,
   badgeLabel,
   badgeTone,
   title,
   description,
   children,
 }: SurfaceAuthHeaderProps & { children: React.ReactNode }) {
+  const { brandName, t } = useI18n();
+
   return (
-    <div className="blueprint-grid flex min-h-screen items-center justify-center bg-[var(--bg-canvas)] px-4 py-8">
-      <Card className="w-full max-w-md shadow-xs">
-        <CardHeader>
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-[var(--ink-muted)]">{eyebrow}</span>
-              <StatusBadge label={badgeLabel} tone={badgeTone} />
+    <div className="app-desk-band flex min-h-dvh items-center justify-center px-4 py-8">
+      <div className="grid w-full max-w-4xl overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-rule-2)] bg-[var(--color-cotton)] shadow-[var(--cast-stock)] lg:grid-cols-12">
+        <aside className="flex flex-col justify-between gap-6 bg-[var(--color-board)] p-6 text-[var(--color-board-type)] sm:p-8 lg:col-span-5">
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <span
+                data-brand-mark="logo"
+                aria-hidden="true"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-input)] border border-[var(--color-rule-2)]/30 bg-[var(--color-ink-2)]"
+              >
+                <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
+                  <rect x="4" y="4.5" width="16" height="3.5" rx="1" fill="var(--color-board-type)" />
+                  <rect x="4" y="10.25" width="12.5" height="3.5" rx="1" fill="var(--color-accent)" />
+                  <rect x="4" y="16" width="9" height="3.5" rx="1" fill="var(--color-paper-3)" />
+                </svg>
+              </span>
+              <p className="min-w-0 truncate text-sm font-semibold text-[var(--color-board-type)]">
+                {brandName}
+              </p>
             </div>
+
+            <div className="space-y-2 pt-2">
+              <h1 className="text-xl font-semibold tracking-tight text-[var(--color-board-type)] sm:text-2xl">
+                {title}
+              </h1>
+              <p className="max-w-prose text-sm leading-relaxed text-[var(--color-paper-3)]">
+                {description}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between border-t border-[var(--color-ink-2)] pt-4">
+            <StatusBadge label={badgeLabel} tone={badgeTone} />
+            <span className="font-mono-tabular text-xs text-[var(--color-paper-3)]">OTP / OIDC</span>
+          </div>
+        </aside>
+
+        <section className="flex flex-col justify-between p-6 sm:p-8 lg:col-span-7">
+          <div className="mb-6 flex items-center justify-between gap-3 border-b border-[var(--color-rule)] pb-4">
+            <h2 className="text-sm font-semibold text-[var(--color-ink)]">{t.common.signIn}</h2>
             <LocaleSwitcher />
           </div>
-          <CardTitle className="text-lg">{title}</CardTitle>
-          <CardDescription>{description}</CardDescription>
-        </CardHeader>
-        <CardContent>{children}</CardContent>
-      </Card>
+          <div className="flex-1">{children}</div>
+        </section>
+      </div>
     </div>
   );
 }
@@ -151,7 +182,7 @@ export function SsoOtpLoginCard({
 
   return (
     <AuthCardShell {...header}>
-      <div className="space-y-4">
+      <div className="space-y-5">
         {error ? <AlertBanner tone="crimson">{error}</AlertBanner> : null}
 
         {step === 'phone' ? (
@@ -163,16 +194,21 @@ export function SsoOtpLoginCard({
                 type="tel"
                 dir="ltr"
                 autoComplete="tel"
+                aria-invalid={Boolean(phoneForm.formState.errors.phone)}
+                aria-describedby="otp-phone-help"
                 placeholder={t.auth.mobilePhonePlaceholder}
                 {...phoneForm.register('phone')}
               />
-              {phoneForm.formState.errors.phone ? (
-                <p className="text-xs text-[var(--signal-crimson)]">
-                  {phoneForm.formState.errors.phone.message}
-                </p>
-              ) : (
-                <p className="text-[11px] text-[var(--ink-muted)]">{t.auth.mobilePhoneHint}</p>
-              )}
+              <p
+                id="otp-phone-help"
+                className={
+                  phoneForm.formState.errors.phone
+                    ? 'min-h-[1lh] text-xs text-[var(--color-error)]'
+                    : 'min-h-[1lh] text-xs text-[var(--color-muted)]'
+                }
+              >
+                {phoneForm.formState.errors.phone?.message ?? t.auth.mobilePhoneHint}
+              </p>
             </div>
 
             <Button
@@ -180,7 +216,7 @@ export function SsoOtpLoginCard({
               className="w-full"
               disabled={phoneForm.formState.isSubmitting}
             >
-              <Smartphone className="h-4 w-4" />
+              <Smartphone className="h-4 w-4" aria-hidden="true" />
               {phoneForm.formState.isSubmitting ? t.auth.sendingOtp : t.auth.sendOtp}
             </Button>
           </form>
@@ -201,25 +237,25 @@ export function SsoOtpLoginCard({
                 dir="ltr"
                 maxLength={6}
                 placeholder="123456"
-                className="font-mono-tabular text-center text-base tracking-[0.35em]"
+                aria-invalid={Boolean(otpForm.formState.errors.code)}
+                aria-describedby="otp-code-help"
+                className="font-mono-tabular text-center text-base tracking-[0.3em]"
                 {...otpForm.register('code')}
               />
-              {otpForm.formState.errors.code ? (
-                <p className="text-xs text-[var(--signal-crimson)]">
-                  {otpForm.formState.errors.code.message}
-                </p>
-              ) : null}
+              <p id="otp-code-help" className="min-h-[1lh] text-xs text-[var(--color-error)]">
+                {otpForm.formState.errors.code?.message ?? ''}
+              </p>
             </div>
 
             <Button type="submit" className="w-full" disabled={otpForm.formState.isSubmitting}>
-              <KeyRound className="h-4 w-4" />
+              <KeyRound className="h-4 w-4" aria-hidden="true" />
               {otpForm.formState.isSubmitting ? t.auth.verifyingOtp : t.auth.verifyOtp}
             </Button>
 
             <div className="flex items-center justify-between text-xs">
               <button
                 type="button"
-                className="text-[var(--ink-muted)] hover:text-[var(--ink-primary)] hover:underline"
+                className="cursor-pointer text-[var(--color-muted)] hover:text-[var(--color-ink)] hover:underline"
                 onClick={() => {
                   setStep('phone');
                   setError(null);
@@ -232,7 +268,7 @@ export function SsoOtpLoginCard({
                 type="button"
                 disabled={resendSeconds > 0}
                 onClick={() => void handleResend()}
-                className="font-medium text-[var(--accent-cobalt)] disabled:cursor-not-allowed disabled:opacity-50 hover:underline"
+                className="cursor-pointer font-medium text-[var(--color-accent-2)] hover:underline disabled:cursor-not-allowed disabled:opacity-55"
               >
                 {resendSeconds > 0
                   ? interpolate(t.auth.resendWait, { seconds: formatNumber(resendSeconds) })
@@ -243,38 +279,36 @@ export function SsoOtpLoginCard({
         )}
 
         <div className="relative flex items-center py-1">
-          <div className="flex-grow border-t border-[var(--border-hairline)]" />
-          <span className="mx-3 shrink-0 text-[11px] text-[var(--ink-muted)]">
-            {t.auth.orDivider}
-          </span>
-          <div className="flex-grow border-t border-[var(--border-hairline)]" />
+          <div className="flex-grow border-t border-[var(--color-rule)]" />
+          <span className="mx-3 shrink-0 text-xs text-[var(--color-muted)]">{t.auth.orDivider}</span>
+          <div className="flex-grow border-t border-[var(--color-rule)]" />
         </div>
 
         {ssoEnabled ? (
           <a
             href={ssoStartHref}
-            className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-4 text-xs font-medium text-[var(--ink-primary)] transition-colors hover:bg-[var(--bg-subtle)]"
+            className="app-btn app-btn-outline h-9 w-full px-4 text-xs"
           >
-            <ShieldCheck className="h-4 w-4 text-[var(--accent-cobalt)]" />
+            <ShieldCheck className="h-4 w-4 text-[var(--color-accent-2)]" aria-hidden="true" />
             {interpolate(t.auth.signInWithSso, { provider: providerLabel })}
           </a>
         ) : (
-          <div className="rounded-md border border-dashed border-[var(--border-hairline)] bg-[var(--bg-subtle)]/50 px-3 py-2.5 text-center text-[11px] text-[var(--ink-muted)]">
-            <span className="flex items-center justify-center gap-1.5 font-medium text-[var(--ink-primary)]">
-              <ShieldCheck className="h-3.5 w-3.5 text-[var(--ink-muted)]" />
+          <div className="rounded-[var(--radius-input)] border border-dashed border-[var(--color-rule-2)] bg-[var(--color-paper)] px-3.5 py-2.5 text-center text-xs text-[var(--color-muted)]">
+            <span className="flex items-center justify-center gap-1.5 font-medium text-[var(--color-ink)]">
+              <ShieldCheck className="h-3.5 w-3.5 text-[var(--color-muted)]" aria-hidden="true" />
               {interpolate(t.auth.signInWithSso, { provider: providerLabel })}
             </span>
             <p className="mt-0.5">{t.auth.ssoUnavailableHint}</p>
           </div>
         )}
 
-        <p className="text-center text-[11px] text-[var(--ink-muted)]">
+        <p className="text-center text-xs leading-relaxed text-[var(--color-muted)]">
           {t.auth.provisionRequiredNotice}
         </p>
       </div>
 
       {footer ? (
-        <div className="mt-4 border-t border-[var(--border-hairline)] pt-3">{footer}</div>
+        <div className="mt-5 border-t border-[var(--color-rule)] pt-4">{footer}</div>
       ) : null}
     </AuthCardShell>
   );

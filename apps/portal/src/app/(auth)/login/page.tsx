@@ -47,7 +47,7 @@ function PortalLoginContent() {
 
 export default function PortalLoginPage() {
   return (
-    <React.Suspense fallback={<div className="min-h-screen bg-[var(--bg-canvas)]" />}>
+    <React.Suspense fallback={<div className="min-h-dvh bg-[var(--color-paper)]" />}>
       <PortalLoginContent />
     </React.Suspense>
   );

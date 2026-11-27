@@ -28,6 +28,8 @@ import {
   OrderStageStepper,
   PageHeader,
   Select,
+  SkeletonStatStrip,
+  SkeletonTable,
   StatusBadge,
   Textarea,
 } from '@portal/ui';
@@ -48,7 +50,7 @@ export default function AdminOrderDetailPage() {
   const params = useParams<{ orderId: string }>();
   const orderId = params.orderId;
   const { user, hasPermission } = useAdminSession(false);
-  const { t, formatDate, formatDateTime, translateError, translateStatus } = useI18n();
+  const { t, formatDate, formatDateTime, formatNumber, translateError, translateStatus } = useI18n();
   const queryClient = useQueryClient();
 
   const [advanceOpen, setAdvanceOpen] = React.useState(false);
@@ -173,8 +175,26 @@ export default function AdminOrderDetailPage() {
     onError: (err) => setErrorMsg(extractErr(err, 'Unable to update state')),
   });
 
+  if (orderQuery.isError) {
+    return (
+      <AlertBanner tone="crimson">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span>{extractErr(orderQuery.error, t.common.noData)}</span>
+          <Button variant="outline" size="sm" onClick={() => void orderQuery.refetch()}>
+            {t.common.retry}
+          </Button>
+        </div>
+      </AlertBanner>
+    );
+  }
+
   if (orderQuery.isLoading || !order) {
-    return <p className="py-8 text-xs text-[var(--ink-muted)]">{t.common.loading}</p>;
+    return (
+      <div className="space-y-6">
+        <SkeletonStatStrip items={4} />
+        <SkeletonTable rows={5} columns={4} />
+      </div>
+    );
   }
 
   const canAdvance =
@@ -203,7 +223,7 @@ export default function AdminOrderDetailPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow={`${order.orderNumber} · ${order.customerName}`}
+        eyebrow={`${order.orderNumber}, ${order.customerName}`}
         title={order.title}
         description={order.description ?? t.orders.adminDescription}
         actions={
@@ -227,7 +247,7 @@ export default function AdminOrderDetailPage() {
             ) : null}
             {canAdvance && allowedStages.length > 0 ? (
               <Button size="sm" onClick={openAdvanceModal}>
-                <ArrowRight className="h-3.5 w-3.5" />
+                <ArrowRight className="h-3.5 w-3.5 rtl:rotate-180" aria-hidden="true" />
                 {t.orders.advanceStage}
               </Button>
             ) : null}
@@ -241,11 +261,14 @@ export default function AdminOrderDetailPage() {
         <CardHeader>
           <CardTitle>{t.orders.stageStepperTitle}</CardTitle>
           <CardDescription>
-            <Link href={`/customers/${order.customerId}`} className="text-[var(--accent-cobalt)] hover:underline">
-              {order.customerCode} · {order.customerName}
+            <Link
+              href={`/customers/${order.customerId}`}
+              className="font-medium text-[var(--color-accent-2)] hover:underline"
+            >
+              {`${order.customerCode} (${order.customerName})`}
             </Link>
             {order.expectedCompletionDate
-              ? ` · ${t.orders.expectedCompletion}: ${formatDate(order.expectedCompletionDate)}`
+              ? ` | ${t.orders.expectedCompletion}: ${formatDate(order.expectedCompletionDate)}`
               : ''}
           </CardDescription>
         </CardHeader>
@@ -254,45 +277,64 @@ export default function AdminOrderDetailPage() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-2">
+      <div className="grid gap-6 lg:grid-cols-12">
+        <div className="space-y-6 lg:col-span-8">
           <Card>
             <CardHeader>
               <CardTitle>{t.orders.lineItemsTitle}</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               {order.items.length === 0 ? (
-                <p className="p-4 text-xs text-[var(--ink-muted)]">{t.common.noData}</p>
+                <p className="p-5 text-xs text-[var(--color-muted)]">{t.common.noData}</p>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-start text-xs">
                     <thead>
-                      <tr className="border-b border-[var(--border-hairline)] bg-[var(--bg-subtle)] text-[var(--ink-muted)]">
-                        <th className="px-4 py-2 font-medium">{t.orders.partNumber}</th>
-                        <th className="px-4 py-2 font-medium">{t.orders.itemName}</th>
-                        <th className="px-4 py-2 font-medium">{t.orders.material}</th>
-                        <th className="px-4 py-2 text-end font-medium">{t.orders.quantity}</th>
+                      <tr className="border-b border-[var(--color-rule)] bg-[var(--color-paper-2)]/75 text-[var(--color-muted)]">
+                        <th className="whitespace-nowrap px-4 py-2.5 font-medium">
+                          {t.orders.partNumber}
+                        </th>
+                        <th className="whitespace-nowrap px-4 py-2.5 font-medium">
+                          {t.orders.itemName}
+                        </th>
+                        <th className="whitespace-nowrap px-4 py-2.5 font-medium">
+                          {t.orders.material}
+                        </th>
+                        <th className="whitespace-nowrap px-4 py-2.5 text-end font-medium">
+                          {t.orders.quantity}
+                        </th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[var(--border-hairline)]">
+                    <tbody className="divide-y divide-[var(--color-rule)]">
                       {order.items.map((item) => (
                         <tr key={item.id}>
-                          <td dir="ltr" className="font-mono-tabular px-4 py-2.5 text-start">
-                            {item.partNumber ?? '—'}
+                          <td className="font-mono-tabular px-4 py-3 text-start">
+                            {item.partNumber ? (
+                              <span dir="ltr" className="inline-block">
+                                {item.partNumber}
+                              </span>
+                            ) : (
+                              '-'
+                            )}
                           </td>
-                          <td className="px-4 py-2.5 font-medium">
+                          <td className="px-4 py-3 font-medium text-[var(--color-ink)]">
                             {item.name}
                             {item.specification ? (
-                              <span className="block text-[11px] font-normal text-[var(--ink-muted)]">
+                              <span className="block text-xs font-normal text-[var(--color-muted)]">
                                 {item.specification}
                               </span>
                             ) : null}
                           </td>
-                          <td className="px-4 py-2.5 text-[var(--ink-muted)]">
-                            {item.material ?? '—'}
+                          <td className="px-4 py-3 text-[var(--color-muted)]">
+                            {item.material ?? '-'}
                           </td>
-                          <td dir="ltr" className="font-mono-tabular px-4 py-2.5 text-end font-medium">
-                            {item.quantity} {item.unit}
+                          <td className="font-mono-tabular px-4 py-3 text-end font-medium">
+                            <span dir="ltr" className="inline-block">
+                              {Number.isFinite(Number(item.quantity))
+                                ? formatNumber(Number(item.quantity))
+                                : item.quantity}{' '}
+                              {item.unit}
+                            </span>
                           </td>
                         </tr>
                       ))}
@@ -308,8 +350,9 @@ export default function AdminOrderDetailPage() {
               <CardTitle>{t.orders.orderThreadTitle}</CardTitle>
               <CardDescription>{t.conversations.publicMode}</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-0">
               <ConversationThread
+                embedded
                 messages={messagesQuery.data ?? []}
                 currentUserId={user?.id ?? ''}
                 canSendPublic={canSendPublic}
@@ -342,7 +385,7 @@ export default function AdminOrderDetailPage() {
           </Card>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-6 lg:col-span-4">
           {order.internalNotes ? (
             <AlertBanner tone="amber" title={t.orders.internalNotesHidden}>
               {order.internalNotes}
@@ -354,31 +397,37 @@ export default function AdminOrderDetailPage() {
               <CardTitle>{t.orders.progressTimelineTitle}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {[...order.progressEvents].reverse().map((evt) => (
-                <div
-                  key={evt.id}
-                  className="space-y-1 rounded-md border border-[var(--border-hairline)] bg-[var(--bg-subtle)]/40 p-3 text-xs"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <StatusBadge label={evt.statusNameSnapshot} tone={evt.statusColorToken} />
-                    <span className="font-mono-tabular text-[10px] text-[var(--ink-muted)]">
-                      {formatDateTime(evt.createdAt)}
-                    </span>
+              {order.progressEvents.length === 0 ? (
+                <p className="text-xs text-[var(--color-muted)]">{t.orders.noProgressEvents}</p>
+              ) : (
+                [...order.progressEvents].reverse().map((evt) => (
+                  <div
+                    key={evt.id}
+                    className="space-y-1.5 rounded-[var(--radius-input)] border border-[var(--color-rule)] bg-[var(--color-paper)] p-3 text-xs"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <StatusBadge label={evt.statusNameSnapshot} tone={evt.statusColorToken} />
+                      <time className="font-mono-tabular text-xs text-[var(--color-muted)]">
+                        {formatDateTime(evt.createdAt)}
+                      </time>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--color-muted)]">
+                      {!evt.isCustomerVisible ? (
+                        <span className="inline-flex items-center gap-1 rounded-[4px] bg-[var(--color-signal-amber-bg)] px-1.5 py-0.5 font-medium text-[var(--color-signal-amber)]">
+                          <Lock className="h-3 w-3" aria-hidden="true" />
+                          {t.orders.visibilityInternal}
+                        </span>
+                      ) : (
+                        <span>{t.orders.visibilityCustomer}</span>
+                      )}
+                      {evt.changedByName ? <span>{evt.changedByName}</span> : null}
+                    </div>
+                    {evt.note ? (
+                      <p className="pt-1 leading-relaxed text-[var(--color-ink)]">{evt.note}</p>
+                    ) : null}
                   </div>
-                  <div className="flex items-center gap-1.5 text-[10px] text-[var(--ink-muted)]">
-                    {!evt.isCustomerVisible ? (
-                      <span className="inline-flex items-center gap-1 rounded bg-[var(--signal-amber-surface)] px-1.5 py-0.5 font-medium text-[var(--signal-amber)]">
-                        <Lock className="h-2.5 w-2.5" />
-                        {t.orders.visibilityInternal}
-                      </span>
-                    ) : (
-                      <span>{t.orders.visibilityCustomer}</span>
-                    )}
-                    {evt.changedByName ? <span>· {evt.changedByName}</span> : null}
-                  </div>
-                  {evt.note ? <p className="pt-1 text-[var(--ink-primary)]">{evt.note}</p> : null}
-                </div>
-              ))}
+                ))
+              )}
             </CardContent>
           </Card>
 
@@ -387,11 +436,12 @@ export default function AdminOrderDetailPage() {
               <div className="flex items-center justify-between gap-2">
                 <CardTitle>{t.documents.title}</CardTitle>
                 <Select
+                  aria-label={t.documents.visibility}
                   value={uploadVisibility}
                   onChange={(e) =>
                     setUploadVisibility(e.target.value as 'customer_visible' | 'internal_only')
                   }
-                  className="h-7 w-40 text-xs"
+                  className="h-8 w-40 text-xs"
                 >
                   <option value="customer_visible">{t.documents.customerVisible}</option>
                   <option value="internal_only">{t.documents.internalOnly}</option>
@@ -413,14 +463,16 @@ export default function AdminOrderDetailPage() {
                 />
               ) : null}
 
-              <div className="divide-y divide-[var(--border-hairline)] text-xs">
-                {(docsQuery.data?.length ?? 0) === 0 ? (
-                  <p className="py-2 text-[var(--ink-muted)]">{t.documents.emptyTitle}</p>
+              <div className="divide-y divide-[var(--color-rule)] text-xs">
+                {docsQuery.isLoading ? (
+                  <SkeletonTable rows={2} columns={2} />
+                ) : (docsQuery.data?.length ?? 0) === 0 ? (
+                  <p className="py-2 text-[var(--color-muted)]">{t.documents.emptyTitle}</p>
                 ) : (
                   docsQuery.data?.map((doc) => (
-                    <div key={doc.id} className="flex items-center justify-between gap-2 py-2">
-                      <div className="min-w-0">
-                        <p dir="ltr" className="truncate font-medium">
+                    <div key={doc.id} className="flex items-center justify-between gap-2 py-2.5">
+                      <div className="min-w-0 space-y-1">
+                        <p dir="ltr" className="truncate font-medium text-[var(--color-ink)]">
                           {doc.originalFilename}
                         </p>
                         <StatusBadge
@@ -428,14 +480,15 @@ export default function AdminOrderDetailPage() {
                           tone={doc.visibility === 'internal_only' ? 'amber' : 'emerald'}
                         />
                       </div>
-                      <button
+                      <Button
                         type="button"
+                        variant="outline"
+                        size="sm"
                         onClick={() => void downloadAdminAttachment(doc.id)}
-                        className="inline-flex shrink-0 items-center gap-1 rounded border border-[var(--border-hairline)] px-2 py-1 text-[11px] font-medium text-[var(--accent-cobalt)] hover:bg-[var(--bg-subtle)]"
                       >
-                        <Download className="h-3 w-3" />
+                        <Download className="h-3.5 w-3.5" aria-hidden="true" />
                         {t.common.download}
-                      </button>
+                      </Button>
                     </div>
                   ))
                 )}
@@ -466,7 +519,7 @@ export default function AdminOrderDetailPage() {
             >
               {allowedStages.map((s) => (
                 <option key={s.id} value={s.id}>
-                  #{s.sortOrder} · {s.name}
+                  {`#${s.sortOrder} ${s.name}`}
                 </option>
               ))}
             </Select>
@@ -505,12 +558,12 @@ export default function AdminOrderDetailPage() {
             </div>
           </div>
 
-          <label className="flex cursor-pointer items-center gap-2 text-xs">
+          <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-[var(--color-ink)]">
             <input
               type="checkbox"
               checked={isCustomerVisible}
               onChange={(e) => setIsCustomerVisible(e.target.checked)}
-              className="accent-[var(--accent-cobalt)]"
+              className="accent-[var(--color-board)]"
             />
             <span>{t.orders.customerVisibleToggle}</span>
           </label>

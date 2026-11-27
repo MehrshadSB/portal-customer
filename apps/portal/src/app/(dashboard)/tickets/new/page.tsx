@@ -20,6 +20,7 @@ import {
   Label,
   PageHeader,
   Select,
+  SkeletonTable,
   Textarea,
 } from '@portal/ui';
 import { createTicketSchema, type CreateTicketInput } from '@portal/validators';
@@ -77,7 +78,9 @@ function NewTicketContent() {
     onError: (err) => {
       const code =
         typeof err === 'object' && err !== null && 'code' in err ? String(err.code) : undefined;
-      setErrorMsg(translateError(code, err instanceof Error ? err.message : 'Unable to create ticket'));
+      setErrorMsg(
+        translateError(code, err instanceof Error ? err.message : 'Unable to create ticket'),
+      );
     },
   });
 
@@ -88,10 +91,7 @@ function NewTicketContent() {
         title={t.tickets.createTitle}
         description={t.tickets.createDesc}
         actions={
-          <Link
-            href="/tickets"
-            className="rounded-md border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-3 py-1.5 text-xs font-medium hover:bg-[var(--bg-subtle)]"
-          >
+          <Link href="/tickets" className="app-btn app-btn-outline h-8 px-3 text-xs">
             {t.common.back}
           </Link>
         }
@@ -135,7 +135,7 @@ function NewTicketContent() {
                 <option value="">{t.tickets.noOrderLink}</option>
                 {ordersQuery.data?.map((o) => (
                   <option key={o.id} value={o.id}>
-                    {o.orderNumber} — {o.title} ({o.currentStageName})
+                    {o.orderNumber}: {o.title} ({o.currentStageName})
                   </option>
                 ))}
               </Select>
@@ -143,31 +143,35 @@ function NewTicketContent() {
 
             <div className="space-y-1.5">
               <Label htmlFor="tk-subject">{t.tickets.subject}</Label>
-              <Input id="tk-subject" {...form.register('subject')} />
-              {form.formState.errors.subject ? (
-                <p className="text-xs text-[var(--signal-crimson)]">
-                  {form.formState.errors.subject.message}
-                </p>
-              ) : null}
+              <Input
+                id="tk-subject"
+                aria-invalid={Boolean(form.formState.errors.subject)}
+                aria-describedby="tk-subject-err"
+                {...form.register('subject')}
+              />
+              <p id="tk-subject-err" className="min-h-[1lh] text-xs text-[var(--color-signal-crimson)]">
+                {form.formState.errors.subject?.message ?? ''}
+              </p>
             </div>
 
             <div className="space-y-1.5">
               <Label htmlFor="tk-desc">{t.common.description}</Label>
-              <Textarea id="tk-desc" rows={5} {...form.register('description')} />
-              {form.formState.errors.description ? (
-                <p className="text-xs text-[var(--signal-crimson)]">
-                  {form.formState.errors.description.message}
-                </p>
-              ) : null}
+              <Textarea
+                id="tk-desc"
+                rows={5}
+                aria-invalid={Boolean(form.formState.errors.description)}
+                aria-describedby="tk-desc-err"
+                {...form.register('description')}
+              />
+              <p id="tk-desc-err" className="min-h-[1lh] text-xs text-[var(--color-signal-crimson)]">
+                {form.formState.errors.description?.message ?? ''}
+              </p>
             </div>
 
-            <div className="flex justify-end gap-2">
-              <Link
-                href="/tickets"
-                className="inline-flex h-9 items-center rounded-md border border-[var(--border-hairline)] px-4 text-xs font-medium hover:bg-[var(--bg-subtle)]"
-              >
-                {t.common.cancel}
-              </Link>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" size="md" asChild>
+                <Link href="/tickets">{t.common.cancel}</Link>
+              </Button>
               <Button type="submit" disabled={mutation.isPending}>
                 {mutation.isPending ? t.common.sending : t.tickets.submitTicket}
               </Button>
@@ -181,7 +185,7 @@ function NewTicketContent() {
 
 export default function PortalNewTicketPage() {
   return (
-    <React.Suspense fallback={<div className="py-8 text-xs text-[var(--ink-muted)]" />}>
+    <React.Suspense fallback={<SkeletonTable rows={4} columns={2} />}>
       <NewTicketContent />
     </React.Suspense>
   );

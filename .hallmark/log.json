@@ -1,0 +1,13 @@
+[
+ {
+  "mode": "redesign",
+  "depth": "full",
+  "scope": "app",
+  "theme": "Coral",
+  "axes": "light/grotesk-sans/warm",
+  "nav": "admin sidebar rail + portal workspace topbar",
+  "signature": "production order and audit workbenches",
+  "prompt": "Automotive coatings chemical factory B2B admin console and customer portal",
+  "date": "2026-11-27"
+ }
+]

@@ -54,6 +54,8 @@ export interface TranslationDictionary {
     upload: string;
     back: string;
     optional: string;
+    retry: string;
+    clearFilters: string;
   };
   statuses: Record<string, string>;
   roles: Record<string, string>;
@@ -111,6 +113,7 @@ export interface TranslationDictionary {
     material: string;
     specification: string;
     quantity: string;
+    unit: string;
     progressTimelineTitle: string;
     noProgressEvents: string;
     advanceStage: string;
@@ -413,6 +416,8 @@ export interface TranslationDictionary {
       workflowsTitle: string;
       workflowsDesc: string;
       stageOrderLabel: string;
+      stageNameLabel: string;
+      stageColorLabel: string;
       customerLabelField: string;
       customerVisibleField: string;
       workflowSaved: string;

@@ -10,6 +10,8 @@ import {
   type OrderDetailDto,
 } from '@portal/types';
 import {
+  AlertBanner,
+  Button,
   Card,
   CardContent,
   CardDescription,
@@ -19,6 +21,8 @@ import {
   FileDropzone,
   OrderStageStepper,
   PageHeader,
+  SkeletonStatStrip,
+  SkeletonTable,
   StatusBadge,
 } from '@portal/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -38,7 +42,7 @@ export default function PortalOrderDetailPage() {
   const params = useParams<{ orderId: string }>();
   const orderId = params.orderId;
   const { user, hasPermission } = usePortalSession(false);
-  const { t, formatDate, formatDateTime, translateStatus } = useI18n();
+  const { t, formatDate, formatDateTime, formatNumber, translateError, translateStatus } = useI18n();
   const queryClient = useQueryClient();
 
   const orderQuery = useQuery({
@@ -103,14 +107,41 @@ export default function PortalOrderDetailPage() {
   const canUpload = hasPermission(PERMISSIONS.DOCUMENT_UPLOAD);
   const canCreateTicket = hasPermission(PERMISSIONS.TICKET_CREATE_COMPANY);
 
-  if (orderQuery.isLoading || !order) {
-    return <p className="py-8 text-xs text-[var(--ink-muted)]">{t.common.loading}</p>;
+  if (orderQuery.isLoading) {
+    return (
+      <div className="space-y-6">
+        <SkeletonStatStrip items={3} />
+        <SkeletonTable rows={5} columns={4} />
+      </div>
+    );
+  }
+
+  if (orderQuery.isError || !order) {
+    return (
+      <AlertBanner tone="crimson">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span>
+            {translateError(
+              typeof orderQuery.error === 'object' &&
+                orderQuery.error !== null &&
+                'code' in orderQuery.error
+                ? String(orderQuery.error.code)
+                : undefined,
+              orderQuery.error instanceof Error ? orderQuery.error.message : t.common.noData,
+            )}
+          </span>
+          <Button variant="outline" size="sm" onClick={() => void orderQuery.refetch()}>
+            {t.common.retry}
+          </Button>
+        </div>
+      </AlertBanner>
+    );
   }
 
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow={`${order.orderNumber} · ${t.orders.eyebrow}`}
+        eyebrow={`${order.orderNumber}: ${t.orders.eyebrow}`}
         title={order.title}
         description={order.description ?? t.orders.portalDescription}
         actions={
@@ -123,9 +154,9 @@ export default function PortalOrderDetailPage() {
             {canCreateTicket ? (
               <Link
                 href={`/tickets/new?orderId=${order.id}`}
-                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-3 text-xs font-medium hover:bg-[var(--bg-subtle)]"
+                className="app-btn app-btn-outline h-8 px-3 text-xs"
               >
-                <LifeBuoy className="h-3.5 w-3.5" />
+                <LifeBuoy className="h-3.5 w-3.5" aria-hidden="true" />
                 {t.orders.openTicketForOrder}
               </Link>
             ) : null}
@@ -147,48 +178,59 @@ export default function PortalOrderDetailPage() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-2">
+      <div className="grid gap-6 lg:grid-cols-12">
+        <div className="space-y-6 lg:col-span-8">
           <Card>
             <CardHeader>
               <CardTitle>{t.orders.lineItemsTitle}</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               {order.items.length === 0 ? (
-                <p className="p-4 text-xs text-[var(--ink-muted)]">{t.common.noData}</p>
+                <p className="p-4 text-xs text-[var(--color-muted)]">{t.common.noData}</p>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-start text-xs">
                     <thead>
-                      <tr className="border-b border-[var(--border-hairline)] bg-[var(--bg-subtle)] text-[var(--ink-muted)]">
+                      <tr className="border-b border-[var(--color-rule)] bg-[var(--color-paper-2)] text-[var(--color-muted)]">
                         <th className="px-4 py-2 font-medium">{t.orders.partNumber}</th>
                         <th className="px-4 py-2 font-medium">{t.orders.itemName}</th>
                         <th className="px-4 py-2 font-medium">{t.orders.material}</th>
                         <th className="px-4 py-2 text-end font-medium">{t.orders.quantity}</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[var(--border-hairline)]">
+                    <tbody className="divide-y divide-[var(--color-rule)]">
                       {order.items.map((item) => (
-                        <tr key={item.id}>
-                          <td dir="ltr" className="font-mono-tabular px-4 py-2.5 text-start">
-                            {item.partNumber ?? '—'}
+                        <tr
+                          key={item.id}
+                          className="transition-colors duration-[var(--dur-micro)] hover:bg-[var(--color-paper-2)]/60"
+                        >
+                          <td className="font-mono-tabular px-4 py-2.5 text-start">
+                            {item.partNumber ? (
+                              <span dir="ltr" className="inline-block">
+                                {item.partNumber}
+                              </span>
+                            ) : (
+                              '-'
+                            )}
                           </td>
-                          <td className="px-4 py-2.5 font-medium">
+                          <td className="px-4 py-2.5 font-medium text-[var(--color-ink)]">
                             {item.name}
                             {item.specification ? (
-                              <span className="block text-[11px] font-normal text-[var(--ink-muted)]">
+                              <span className="block text-xs font-normal text-[var(--color-muted)]">
                                 {item.specification}
                               </span>
                             ) : null}
                           </td>
-                          <td className="px-4 py-2.5 text-[var(--ink-muted)]">
-                            {item.material ?? '—'}
+                          <td className="px-4 py-2.5 text-[var(--color-muted)]">
+                            {item.material ?? '-'}
                           </td>
-                          <td
-                            dir="ltr"
-                            className="font-mono-tabular px-4 py-2.5 text-end font-medium"
-                          >
-                            {item.quantity} {item.unit}
+                          <td className="font-mono-tabular px-4 py-2.5 text-end font-medium text-[var(--color-ink)]">
+                            <span dir="ltr" className="inline-block">
+                              {Number.isFinite(Number(item.quantity))
+                                ? formatNumber(Number(item.quantity))
+                                : item.quantity}{' '}
+                              {item.unit}
+                            </span>
                           </td>
                         </tr>
                       ))}
@@ -204,8 +246,9 @@ export default function PortalOrderDetailPage() {
               <CardTitle>{t.orders.orderThreadTitle}</CardTitle>
               <CardDescription>{t.conversations.publicMode}</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-0">
               <ConversationThread
+                embedded
                 messages={messagesQuery.data ?? []}
                 currentUserId={user?.id ?? ''}
                 canSendPublic={canSendPublic}
@@ -235,29 +278,27 @@ export default function PortalOrderDetailPage() {
           </Card>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-6 lg:col-span-4">
           <Card>
             <CardHeader>
               <CardTitle>{t.orders.progressTimelineTitle}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               {order.progressEvents.length === 0 ? (
-                <p className="text-xs text-[var(--ink-muted)]">{t.orders.noProgressEvents}</p>
+                <p className="text-xs text-[var(--color-muted)]">{t.orders.noProgressEvents}</p>
               ) : (
                 [...order.progressEvents].reverse().map((evt) => (
                   <div
                     key={evt.id}
-                    className="space-y-1 rounded-md border border-[var(--border-hairline)] bg-[var(--bg-subtle)]/40 p-3 text-xs"
+                    className="space-y-1 rounded-[var(--radius-input)] border border-[var(--color-rule)] bg-[var(--color-paper-2)]/60 p-3 text-xs"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <StatusBadge label={evt.statusNameSnapshot} tone={evt.statusColorToken} />
-                      <span className="font-mono-tabular text-[10px] text-[var(--ink-muted)]">
+                      <span className="font-mono-tabular text-xs text-[var(--color-muted)]">
                         {formatDateTime(evt.createdAt)}
                       </span>
                     </div>
-                    {evt.note ? (
-                      <p className="pt-1 text-[var(--ink-primary)]">{evt.note}</p>
-                    ) : null}
+                    {evt.note ? <p className="pt-1 text-[var(--color-ink)]">{evt.note}</p> : null}
                   </div>
                 ))
               )}
@@ -280,28 +321,32 @@ export default function PortalOrderDetailPage() {
                 />
               ) : null}
 
-              <div className="divide-y divide-[var(--border-hairline)] text-xs">
-                {(docsQuery.data?.length ?? 0) === 0 ? (
-                  <p className="py-2 text-[var(--ink-muted)]">{t.documents.emptyTitle}</p>
+              <div className="divide-y divide-[var(--color-rule)] text-xs">
+                {docsQuery.isLoading ? (
+                  <SkeletonTable rows={2} columns={2} />
+                ) : (docsQuery.data?.length ?? 0) === 0 ? (
+                  <p className="py-2 text-[var(--color-muted)]">{t.documents.emptyTitle}</p>
                 ) : (
                   docsQuery.data?.map((doc) => (
-                    <div key={doc.id} className="flex items-center justify-between gap-2 py-2">
+                    <div key={doc.id} className="flex items-center justify-between gap-2 py-2.5">
                       <div className="min-w-0">
-                        <p dir="ltr" className="truncate font-medium text-[var(--ink-primary)]">
+                        <p dir="ltr" className="truncate font-medium text-[var(--color-ink)]">
                           {doc.originalFilename}
                         </p>
-                        <p className="font-mono-tabular text-[10px] text-[var(--ink-muted)]">
-                          {Math.max(1, Math.round(doc.sizeBytes / 1024))} KB
+                        <p className="font-mono-tabular text-xs text-[var(--color-muted)]">
+                          <span dir="ltr" className="inline-block">
+                            {formatNumber(Math.max(1, Math.round(doc.sizeBytes / 1024)))} KB
+                          </span>
                         </p>
                       </div>
-                      <button
-                        type="button"
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={() => void downloadPortalAttachment(doc.id)}
-                        className="inline-flex shrink-0 items-center gap-1 rounded border border-[var(--border-hairline)] px-2 py-1 text-[11px] font-medium text-[var(--accent-cobalt)] hover:bg-[var(--bg-subtle)]"
                       >
-                        <Download className="h-3 w-3" />
+                        <Download className="h-3.5 w-3.5" aria-hidden="true" />
                         {t.common.download}
-                      </button>
+                      </Button>
                     </div>
                   ))
                 )}

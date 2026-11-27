@@ -8,8 +8,8 @@ import { QueryProvider } from '@/lib/query-provider';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'کنسول مدیریت و عملیات | آذرپارت صنعت',
-  description: 'پنل عملیاتی مدیریت مشتریان، سفارش‌های ساخت، گردش کار و تیکت‌های پشتیبانی',
+  title: 'کنسول عملیات | تولید رنگ و پوشش‌های خودرو',
+  description: 'سامانه مدیریت سفارش‌های تولید رنگ و پوشش، مشتریان، گردش کار و پشتیبانی',
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

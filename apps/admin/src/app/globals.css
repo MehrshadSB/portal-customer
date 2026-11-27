@@ -1,8 +1,6 @@
+/* Hallmark · shape: app screen · genre: modern-minimal · theme: Coral (deal 3/3, seed automotive-coatings-chemical-manufacturing-e55f·50cc628f·2026-11-27·r0) · redesign: full
+ * nav: collapsible sidebar rail and utility header · signature: live production order and audit ledger · states: loading, empty, error, full · v2.0.0 */
+/* Hallmark · pre-emit critique: P5 H4 E5 S4 R5 V4 · weakest: S, anchored palette and chrome to automotive coatings manufacturing operations */
 @import "tailwindcss";
-@import "@portal/ui/styles.css";
+@import "../../../../packages/ui/src/styles/blueprint.css";
 @source "../../../../packages/ui/src";
-
-@theme inline {
-  --font-sans: "Vazirmatn Variable", "Plus Jakarta Sans Variable", system-ui, -apple-system, sans-serif;
-  --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
-}

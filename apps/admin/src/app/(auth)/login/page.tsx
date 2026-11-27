@@ -42,11 +42,9 @@ function AdminLoginContent() {
         router.push('/');
       }}
       footer={
-        <div className="flex items-center justify-between text-xs text-[var(--ink-muted)]">
+        <div className="flex items-center justify-between text-xs text-[var(--color-muted)]">
           <span>{t.meta.adminTitle}</span>
-          <span dir="ltr" className="font-mono-tabular">
-            :3001
-          </span>
+          <span>{t.meta.adminSubtitle}</span>
         </div>
       }
     />
@@ -55,7 +53,7 @@ function AdminLoginContent() {
 
 export default function AdminLoginPage() {
   return (
-    <React.Suspense fallback={<div className="min-h-screen bg-[var(--bg-canvas)]" />}>
+    <React.Suspense fallback={<div className="min-h-dvh bg-[var(--color-paper)]" />}>
       <AdminLoginContent />
     </React.Suspense>
   );

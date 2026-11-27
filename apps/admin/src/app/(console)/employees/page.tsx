@@ -19,6 +19,7 @@ import {
   ModalDialog,
   PageHeader,
   Select,
+  SkeletonTable,
   StatusBadge,
 } from '@portal/ui';
 import { createEmployeeSchema, type CreateEmployeeInput } from '@portal/validators';
@@ -123,7 +124,7 @@ export default function AdminEmployeesPage() {
         actions={
           canManage ? (
             <Button size="sm" onClick={() => setCreateOpen(true)}>
-              <UserPlus className="h-3.5 w-3.5" />
+              <UserPlus className="h-3.5 w-3.5" aria-hidden="true" />
               {t.admin.employees.createEmployee}
             </Button>
           ) : null
@@ -131,71 +132,118 @@ export default function AdminEmployeesPage() {
       />
 
       {errorMsg ? <AlertBanner tone="crimson">{errorMsg}</AlertBanner> : null}
+      {employeesQuery.isError ? (
+        <AlertBanner tone="crimson">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span>{extractErr(employeesQuery.error, t.common.noData)}</span>
+            <Button variant="outline" size="sm" onClick={() => void employeesQuery.refetch()}>
+              {t.common.retry}
+            </Button>
+          </div>
+        </AlertBanner>
+      ) : null}
 
-      <div className="relative max-w-md">
-        <Search className="pointer-events-none absolute start-3 top-2.5 h-4 w-4 text-[var(--ink-muted)]" />
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={t.admin.employees.searchPlaceholder}
-          className="ps-9"
-        />
-      </div>
+      <Card className="overflow-hidden">
+        <div className="border-b border-[var(--color-rule)] bg-[var(--color-paper-2)]/65 p-4">
+          <div className="relative max-w-md">
+            <Search
+              className="pointer-events-none absolute start-3 top-2.5 h-4 w-4 text-[var(--color-muted)]"
+              aria-hidden="true"
+            />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              aria-label={t.admin.employees.searchPlaceholder}
+              placeholder={t.admin.employees.searchPlaceholder}
+              className="ps-9"
+            />
+          </div>
+        </div>
 
-      <Card>
         <CardContent className="p-0">
-          {items.length === 0 ? (
-            <div className="p-6">
-              <EmptyState
-                icon={<Users className="h-4 w-4" />}
-                title={t.admin.employees.emptyTitle}
-                description={t.admin.employees.emptyDesc}
-              />
-            </div>
+          {employeesQuery.isLoading ? (
+            <SkeletonTable rows={5} columns={6} />
+          ) : employeesQuery.isError ? null : items.length === 0 ? (
+            <EmptyState
+              embedded
+              headingLevel="h2"
+              icon={<Users className="h-4 w-4" aria-hidden="true" />}
+              title={t.admin.employees.emptyTitle}
+              description={t.admin.employees.emptyDesc}
+              action={
+                search ? (
+                  <Button variant="outline" size="sm" onClick={() => setSearch('')}>
+                    {t.common.clearFilters}
+                  </Button>
+                ) : canManage ? (
+                  <Button size="sm" onClick={() => setCreateOpen(true)}>
+                    {t.admin.employees.createEmployee}
+                  </Button>
+                ) : undefined
+              }
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-start text-xs">
                 <thead>
-                  <tr className="border-b border-[var(--border-hairline)] bg-[var(--bg-subtle)] text-[var(--ink-muted)]">
-                    <th className="px-4 py-2.5 font-medium">{t.admin.employees.colCode}</th>
-                    <th className="px-4 py-2.5 font-medium">{t.admin.employees.colEmployee}</th>
-                    <th className="px-4 py-2.5 font-medium">{t.admin.employees.colDepartment}</th>
-                    <th className="px-4 py-2.5 font-medium">{t.admin.employees.colRoles}</th>
-                    <th className="px-4 py-2.5 font-medium">{t.common.status}</th>
+                  <tr className="border-b border-[var(--color-rule)] bg-[var(--color-paper-2)]/75 text-[var(--color-muted)]">
+                    <th className="whitespace-nowrap px-4 py-3 font-medium">
+                      {t.admin.employees.colCode}
+                    </th>
+                    <th className="whitespace-nowrap px-4 py-3 font-medium">
+                      {t.admin.employees.colEmployee}
+                    </th>
+                    <th className="whitespace-nowrap px-4 py-3 font-medium">
+                      {t.admin.employees.colDepartment}
+                    </th>
+                    <th className="whitespace-nowrap px-4 py-3 font-medium">
+                      {t.admin.employees.colRoles}
+                    </th>
+                    <th className="whitespace-nowrap px-4 py-3 font-medium">
+                      {t.common.status}
+                    </th>
                     {canManage ? (
-                      <th className="px-4 py-2.5 text-end font-medium">
+                      <th className="whitespace-nowrap px-4 py-3 text-end font-medium">
                         {t.admin.employees.colManage}
                       </th>
                     ) : null}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[var(--border-hairline)]">
+                <tbody className="divide-y divide-[var(--color-rule)]">
                   {items.map((emp) => (
-                    <tr key={emp.id} className="hover:bg-[var(--bg-subtle)]/50">
-                      <td dir="ltr" className="font-mono-tabular px-4 py-2.5 text-start font-medium">
-                        {emp.employeeCode}
+                    <tr
+                      key={emp.id}
+                      className="transition-colors duration-[var(--dur-micro)] hover:bg-[var(--color-paper)]"
+                    >
+                      <td className="font-mono-tabular px-4 py-3 text-start font-medium text-[var(--color-ink)]">
+                        <span dir="ltr" className="inline-block">
+                          {emp.employeeCode}
+                        </span>
                       </td>
-                      <td className="px-4 py-2.5">
-                        <p className="font-medium text-[var(--ink-primary)]">{emp.fullName}</p>
-                        <p
-                          dir="ltr"
-                          className="font-mono-tabular text-start text-[11px] text-[var(--ink-muted)]"
-                        >
-                          {[emp.phone, emp.email].filter(Boolean).join(' · ') || '—'}
+                      <td className="px-4 py-3">
+                        <p className="font-medium text-[var(--color-ink)]">{emp.fullName}</p>
+                        <p className="font-mono-tabular text-start text-xs text-[var(--color-muted)]">
+                          {emp.phone || emp.email ? (
+                            <span dir="ltr" className="inline-block">
+                              {[emp.phone, emp.email].filter(Boolean).join(', ')}
+                            </span>
+                          ) : (
+                            '-'
+                          )}
                         </p>
                       </td>
-                      <td className="px-4 py-2.5 text-[var(--ink-muted)]">
+                      <td className="px-4 py-3 text-[var(--color-muted)]">
                         {emp.departmentName ?? t.common.unassigned}
-                        {emp.jobTitle ? <span className="block text-[11px]">{emp.jobTitle}</span> : null}
+                        {emp.jobTitle ? <span className="block text-xs">{emp.jobTitle}</span> : null}
                       </td>
-                      <td className="px-4 py-2.5">
-                        <div className="flex flex-wrap gap-1">
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap gap-1.5">
                           {emp.roles.map((r) => (
                             <StatusBadge key={r.id} label={translateRole(r.slug)} tone="cobalt" />
                           ))}
                         </div>
                       </td>
-                      <td className="px-4 py-2.5">
+                      <td className="px-4 py-3">
                         <StatusBadge
                           label={
                             emp.isActive
@@ -212,7 +260,7 @@ export default function AdminEmployeesPage() {
                         />
                       </td>
                       {canManage ? (
-                        <td className="px-4 py-2.5 text-end">
+                        <td className="px-4 py-3 text-end">
                           <Button variant="outline" size="sm" onClick={() => openEdit(emp)}>
                             {t.common.edit}
                           </Button>
@@ -236,7 +284,15 @@ export default function AdminEmployeesPage() {
         <form onSubmit={form.handleSubmit((v) => createMutation.mutate(v))} className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="emp-name">{t.common.fullName}</Label>
-            <Input id="emp-name" {...form.register('fullName')} />
+            <Input
+              id="emp-name"
+              aria-invalid={Boolean(form.formState.errors.fullName)}
+              aria-describedby="emp-name-err"
+              {...form.register('fullName')}
+            />
+            <p id="emp-name-err" className="min-h-[1lh] text-xs text-[var(--color-error)]">
+              {form.formState.errors.fullName?.message ?? ''}
+            </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
@@ -246,14 +302,29 @@ export default function AdminEmployeesPage() {
                 type="tel"
                 dir="ltr"
                 placeholder="+989123456789"
+                aria-invalid={Boolean(form.formState.errors.phone)}
+                aria-describedby="emp-phone-err"
                 {...form.register('phone')}
               />
+              <p id="emp-phone-err" className="min-h-[1lh] text-xs text-[var(--color-error)]">
+                {form.formState.errors.phone?.message ?? ''}
+              </p>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="emp-email">
                 {t.common.email} ({t.common.optional})
               </Label>
-              <Input id="emp-email" type="email" dir="ltr" {...form.register('email')} />
+              <Input
+                id="emp-email"
+                type="email"
+                dir="ltr"
+                aria-invalid={Boolean(form.formState.errors.email)}
+                aria-describedby="emp-email-err"
+                {...form.register('email')}
+              />
+              <p id="emp-email-err" className="min-h-[1lh] text-xs text-[var(--color-error)]">
+                {form.formState.errors.email?.message ?? ''}
+              </p>
             </div>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">

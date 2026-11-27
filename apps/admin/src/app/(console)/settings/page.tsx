@@ -25,6 +25,8 @@ import {
   Label,
   PageHeader,
   Select,
+  SkeletonStatStrip,
+  SkeletonTable,
   StatusBadge,
 } from '@portal/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -47,12 +49,11 @@ export default function AdminSettingsPage() {
   const [feedback, setFeedback] = React.useState<string | null>(null);
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
 
-  // Localization state
   const [defaultLocale, setDefaultLocale] = React.useState<AppLocale>('fa');
   const [enabledLocales, setEnabledLocales] = React.useState<Set<AppLocale>>(new Set(['fa', 'en']));
   const [calendarType, setCalendarType] = React.useState<CalendarType>('jalali');
-  const [brandNameFa, setBrandNameFa] = React.useState('آذرپارت صنعت');
-  const [brandNameEn, setBrandNameEn] = React.useState('AzarPart Mfg');
+  const [brandNameFa, setBrandNameFa] = React.useState('رنگ و پوشش‌های خودرو');
+  const [brandNameEn, setBrandNameEn] = React.useState('Automotive Coatings');
   const [locFeedback, setLocFeedback] = React.useState<string | null>(null);
 
   const localizationQuery = useQuery({
@@ -140,8 +141,11 @@ export default function AdminSettingsPage() {
       await queryClient.invalidateQueries({ queryKey: ['admin', 'localization-settings'] });
     },
     onError: (err) => {
-      const code = typeof err === 'object' && err !== null && 'code' in err ? String(err.code) : undefined;
-      setErrorMsg(translateError(code, err instanceof Error ? err.message : 'Unable to save settings'));
+      const code =
+        typeof err === 'object' && err !== null && 'code' in err ? String(err.code) : undefined;
+      setErrorMsg(
+        translateError(code, err instanceof Error ? err.message : 'Unable to save settings'),
+      );
     },
   });
 
@@ -156,8 +160,11 @@ export default function AdminSettingsPage() {
       await queryClient.invalidateQueries({ queryKey: ['admin', 'roles'] });
     },
     onError: (err) => {
-      const code = typeof err === 'object' && err !== null && 'code' in err ? String(err.code) : undefined;
-      setErrorMsg(translateError(code, err instanceof Error ? err.message : 'Unable to save permissions'));
+      const code =
+        typeof err === 'object' && err !== null && 'code' in err ? String(err.code) : undefined;
+      setErrorMsg(
+        translateError(code, err instanceof Error ? err.message : 'Unable to save permissions'),
+      );
     },
   });
 
@@ -193,8 +200,46 @@ export default function AdminSettingsPage() {
       />
 
       {errorMsg ? <AlertBanner tone="crimson">{errorMsg}</AlertBanner> : null}
+      {localizationQuery.isError ||
+      rolesQuery.isError ||
+      permissionsQuery.isError ||
+      workflowsQuery.isError ? (
+        <AlertBanner tone="crimson">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span>
+              {(() => {
+                const err =
+                  localizationQuery.error ??
+                  rolesQuery.error ??
+                  permissionsQuery.error ??
+                  workflowsQuery.error;
+                const code =
+                  typeof err === 'object' && err !== null && 'code' in err
+                    ? String(err.code)
+                    : undefined;
+                return translateError(code, err instanceof Error ? err.message : t.common.noData);
+              })()}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                void localizationQuery.refetch();
+                if (canManageRbac) {
+                  void rolesQuery.refetch();
+                  void permissionsQuery.refetch();
+                }
+                if (canManageWorkflows) {
+                  void workflowsQuery.refetch();
+                }
+              }}
+            >
+              {t.common.retry}
+            </Button>
+          </div>
+        </AlertBanner>
+      ) : null}
 
-      {/* Platform Language & Localization Setup */}
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -205,7 +250,7 @@ export default function AdminSettingsPage() {
             {canManageLocalization ? (
               <Button
                 size="sm"
-                disabled={saveLocMutation.isPending}
+                disabled={saveLocMutation.isPending || localizationQuery.isLoading}
                 onClick={() => saveLocMutation.mutate()}
               >
                 {saveLocMutation.isPending ? t.common.saving : t.admin.settings.saveLocalization}
@@ -214,7 +259,11 @@ export default function AdminSettingsPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {locFeedback ? <AlertBanner tone="emerald">{locFeedback}</AlertBanner> : null}
+          {localizationQuery.isLoading ? (
+            <SkeletonStatStrip items={4} />
+          ) : (
+            <>
+              {locFeedback ? <AlertBanner tone="emerald">{locFeedback}</AlertBanner> : null}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-1.5">
               <Label htmlFor="loc-default">{t.admin.settings.defaultLanguageLabel}</Label>
@@ -274,74 +323,89 @@ export default function AdminSettingsPage() {
           <div className="space-y-1.5">
             <Label>{t.admin.settings.enabledLanguagesLabel}</Label>
             <div className="flex flex-wrap gap-3">
-              {SUPPORTED_LOCALES.map((code) => (
-                <label
-                  key={code}
-                  className="flex cursor-pointer items-center gap-2 rounded-md border border-[var(--border-hairline)] bg-[var(--bg-subtle)]/40 px-3 py-1.5 text-xs"
-                >
-                  <input
-                    type="checkbox"
-                    checked={enabledLocales.has(code)}
-                    disabled={!canManageLocalization || code === defaultLocale}
-                    onChange={() => toggleEnabledLocale(code)}
-                    className="accent-[var(--accent-cobalt)]"
-                  />
-                  <span>{code === 'fa' ? t.meta.persianLabel : t.meta.englishLabel}</span>
-                </label>
-              ))}
+              {SUPPORTED_LOCALES.map((code) => {
+                const locked = !canManageLocalization || code === defaultLocale;
+                return (
+                  <label
+                    key={code}
+                    className={`flex h-9 items-center gap-2 rounded-[var(--radius-input)] border border-[var(--color-muted)] bg-[var(--color-paper)] px-3 text-xs font-medium text-[var(--color-ink)] ${
+                      locked ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={enabledLocales.has(code)}
+                      disabled={locked}
+                      onChange={() => toggleEnabledLocale(code)}
+                      className="accent-[var(--color-board)]"
+                    />
+                    <span>{code === 'fa' ? t.meta.persianLabel : t.meta.englishLabel}</span>
+                  </label>
+                );
+              })}
             </div>
           </div>
+            </>
+          )}
         </CardContent>
       </Card>
 
       {canManageRbac ? (
         <>
           {feedback ? <AlertBanner tone="emerald">{feedback}</AlertBanner> : null}
-          <div className="grid gap-6 lg:grid-cols-3">
-            <Card className="lg:col-span-1">
+          <div className="grid gap-6 lg:grid-cols-12">
+            <Card className="lg:col-span-4">
               <CardHeader>
                 <CardTitle>{t.admin.settings.rolesTitle}</CardTitle>
                 <CardDescription>{t.admin.settings.rolesDesc}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-1.5 p-3">
-                {roles.map((role) => (
-                  <button
-                    key={role.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedRoleId(role.id);
-                      setDraftKeys(new Set(role.permissionKeys));
-                      setFeedback(null);
-                    }}
-                    className={`flex w-full items-center justify-between rounded-md border px-3 py-2 text-start text-xs transition-colors ${
-                      selectedRole?.id === role.id
-                        ? 'border-[var(--accent-cobalt)] bg-[var(--accent-cobalt)]/10'
-                        : 'border-transparent hover:bg-[var(--bg-subtle)]'
-                    }`}
-                  >
-                    <div>
-                      <p className="font-medium text-[var(--ink-primary)]">
-                        {translateRole(role.slug)}
-                      </p>
-                      <p className="text-[11px] text-[var(--ink-muted)]">
-                        <span dir="ltr" className="font-mono-tabular">
-                          {role.slug}
-                        </span>{' '}
-                        · {formatNumber(role.permissionKeys.length)} {t.admin.settings.permsCountSuffix}
-                      </p>
-                    </div>
-                    <StatusBadge
-                      label={translateStatus(role.scope)}
-                      tone={role.scope === 'employee' ? 'amber' : 'cobalt'}
-                    />
-                  </button>
-                ))}
+                {rolesQuery.isLoading ? (
+                  <SkeletonTable rows={4} columns={2} />
+                ) : (
+                  roles.map((role) => {
+                  const isSelected = selectedRole?.id === role.id;
+                  return (
+                    <button
+                      key={role.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedRoleId(role.id);
+                        setDraftKeys(new Set(role.permissionKeys));
+                        setFeedback(null);
+                      }}
+                      className={`flex w-full cursor-pointer items-center justify-between rounded-[var(--radius-input)] border px-3 py-2.5 text-start text-xs transition-colors duration-[var(--dur-micro)] ${
+                        isSelected
+                          ? 'border-[var(--color-board)] bg-[var(--color-paper-2)]'
+                          : 'border-transparent hover:bg-[var(--color-paper)]'
+                      }`}
+                    >
+                      <div className="min-w-0 space-y-0.5">
+                        <p className="font-semibold text-[var(--color-ink)]">
+                          {translateRole(role.slug)}
+                        </p>
+                        <p className="text-xs text-[var(--color-muted)]">
+                          <span dir="ltr" className="font-mono-tabular">
+                            {role.slug}
+                          </span>{' '}
+                          ({formatNumber(role.permissionKeys.length)}{' '}
+                          {t.admin.settings.permsCountSuffix})
+                        </p>
+                      </div>
+                      <StatusBadge
+                        label={translateStatus(role.scope)}
+                        tone={role.scope === 'employee' ? 'amber' : 'cobalt'}
+                      />
+                    </button>
+                  );
+                })
+                )}
               </CardContent>
             </Card>
 
-            <Card className="lg:col-span-2">
+            <Card className="lg:col-span-8">
               <CardHeader>
-                <div className="flex items-center justify-between gap-4">
+                <div className="flex flex-wrap items-center justify-between gap-4">
                   <div>
                     <CardTitle>
                       {selectedRole ? translateRole(selectedRole.slug) : t.admin.settings.rolesTitle}
@@ -369,33 +433,46 @@ export default function AdminSettingsPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {permissionsQuery.data?.map((perm) => {
-                    const checked = draftKeys.has(perm.key);
-                    return (
-                      <label
-                        key={perm.id}
-                        className="flex cursor-pointer items-start gap-2.5 rounded-md border border-[var(--border-hairline)] px-3 py-2 text-xs hover:bg-[var(--bg-subtle)]/50"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          disabled={selectedRole?.slug === 'admin'}
-                          onChange={() => toggleKey(perm.key)}
-                          className="mt-0.5 accent-[var(--accent-cobalt)]"
-                        />
-                        <span className="min-w-0">
-                          <span dir="ltr" className="font-mono-tabular block text-start font-medium text-[var(--ink-primary)]">
-                            {perm.key}
+                {permissionsQuery.isLoading ? (
+                  <SkeletonTable rows={6} columns={2} />
+                ) : (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {permissionsQuery.data?.map((perm) => {
+                      const checked = draftKeys.has(perm.key);
+                      const locked = selectedRole?.slug === 'admin';
+                      return (
+                        <label
+                          key={perm.id}
+                          className={`flex items-start gap-2.5 rounded-[var(--radius-input)] border border-[var(--color-rule)] bg-[var(--color-paper)] px-3 py-2.5 text-xs transition-colors duration-[var(--dur-micro)] hover:bg-[var(--color-paper-2)]/60 ${
+                            locked ? 'cursor-default opacity-80' : 'cursor-pointer'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            disabled={locked}
+                            onChange={() => toggleKey(perm.key)}
+                            className="mt-0.5 accent-[var(--color-board)]"
+                          />
+                          <span className="min-w-0">
+                            <span
+                              dir="ltr"
+                              className="font-mono-tabular block text-start font-medium text-[var(--color-ink)]"
+                            >
+                              {perm.key}
+                            </span>
+                            <span
+                              dir="ltr"
+                              className="block text-start text-xs text-[var(--color-muted)]"
+                            >
+                              {`${perm.resource} / ${perm.action}`}
+                            </span>
                           </span>
-                          <span dir="ltr" className="block text-start text-[11px] text-[var(--ink-muted)]">
-                            {perm.resource} · {perm.action}
-                          </span>
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -410,21 +487,25 @@ export default function AdminSettingsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             {workflowFeedback ? <AlertBanner tone="emerald">{workflowFeedback}</AlertBanner> : null}
-            {workflowsQuery.data?.map((wf) => (
-              <div key={wf.id} className="space-y-3">
-                <p className="text-xs font-semibold text-[var(--ink-primary)]">{wf.name}</p>
-                <div className="divide-y divide-[var(--border-hairline)] rounded-md border border-[var(--border-hairline)]">
-                  {wf.statuses.map((st) => (
-                    <WorkflowStageRow
-                      key={st.id}
-                      stage={st}
-                      isSaving={updateStageMutation.isPending}
-                      onSave={(next) => updateStageMutation.mutate(next)}
-                    />
-                  ))}
+            {workflowsQuery.isLoading ? (
+              <SkeletonTable rows={4} columns={5} />
+            ) : (
+              workflowsQuery.data?.map((wf) => (
+                <div key={wf.id} className="space-y-3">
+                  <p className="text-sm font-semibold text-[var(--color-ink)]">{wf.name}</p>
+                  <div className="divide-y divide-[var(--color-rule)] rounded-[var(--radius-card)] border border-[var(--color-rule)] bg-[var(--color-paper)]">
+                    {wf.statuses.map((st) => (
+                      <WorkflowStageRow
+                        key={st.id}
+                        stage={st}
+                        isSaving={updateStageMutation.isPending}
+                        onSave={(next) => updateStageMutation.mutate(next)}
+                      />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </CardContent>
         </Card>
       ) : null}
@@ -448,17 +529,20 @@ function WorkflowStageRow({
   const [isCustomerVisible, setIsCustomerVisible] = React.useState(stage.isCustomerVisible);
 
   return (
-    <div className="grid items-end gap-3 p-3 text-xs md:grid-cols-6">
+    <div className="grid items-end gap-3 p-3.5 text-xs md:grid-cols-6">
       <div>
-        <span className="font-mono-tabular text-[11px] text-[var(--ink-muted)]">
-          {t.admin.settings.stageOrderLabel} #{formatNumber(stage.sortOrder)}
+        <span className="text-xs text-[var(--color-muted)]">
+          {t.admin.settings.stageOrderLabel}{' '}
+          <span className="font-mono-tabular">#{formatNumber(stage.sortOrder)}</span>
         </span>
-        <p dir="ltr" className="font-mono-tabular font-medium">
-          {stage.code}
+        <p className="font-mono-tabular font-semibold text-[var(--color-ink)]">
+          <span dir="ltr" className="inline-block">
+            {stage.code}
+          </span>
         </p>
       </div>
       <div className="space-y-1">
-        <Label>{t.common.role}</Label>
+        <Label>{t.admin.settings.stageNameLabel}</Label>
         <Input value={name} onChange={(e) => setName(e.target.value)} />
       </div>
       <div className="space-y-1">
@@ -466,7 +550,7 @@ function WorkflowStageRow({
         <Input value={customerLabel} onChange={(e) => setCustomerLabel(e.target.value)} />
       </div>
       <div className="space-y-1">
-        <Label>{t.common.status}</Label>
+        <Label>{t.admin.settings.stageColorLabel}</Label>
         <Select
           value={colorToken}
           onChange={(e) =>
@@ -480,12 +564,12 @@ function WorkflowStageRow({
           ))}
         </Select>
       </div>
-      <label className="flex items-center gap-2 pb-2">
+      <label className="flex h-9 cursor-pointer items-center gap-2 text-xs font-medium text-[var(--color-ink)]">
         <input
           type="checkbox"
           checked={isCustomerVisible}
           onChange={(e) => setIsCustomerVisible(e.target.checked)}
-          className="accent-[var(--accent-cobalt)]"
+          className="accent-[var(--color-board)]"
         />
         <span>{t.admin.settings.customerVisibleField}</span>
       </label>
@@ -493,7 +577,7 @@ function WorkflowStageRow({
         <Button
           type="button"
           variant="outline"
-          size="sm"
+          size="md"
           disabled={isSaving}
           onClick={() =>
             onSave({

@@ -39,3 +39,20 @@ pnpm dev
 - **Swagger API Docs**: `http://localhost:4000/api/docs`
 - **RustFS S3 Console**: `http://localhost:9011` (`rustfsadmin` / `rustfssecret123`)
 - **Mailpit Email UI**: `http://localhost:8025`
+- **Dozzle Logs & Container Terminals**: `http://localhost:8080`
+
+## Dockerized Apps & Dozzle
+
+To run the infrastructure (`postgres`, `redis`, `s3`, `mailpit`), all three apps (`api`, `portal`, `admin`), and Dozzle (`dozzle`) together in Docker:
+
+```bash
+cp .env.example .env
+pnpm docker:up
+```
+
+If you only want infrastructure containers in Docker while running `pnpm dev` locally:
+
+```bash
+pnpm infra:up
+pnpm dev
+```

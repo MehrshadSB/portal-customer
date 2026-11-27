@@ -7,10 +7,7 @@ export const Select = React.forwardRef<
 >(({ className, children, ...props }, ref) => (
   <select
     ref={ref}
-    className={cn(
-      'flex h-9 w-full rounded-md border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-3 py-1.5 text-sm text-[var(--ink-primary)] transition-colors disabled:cursor-not-allowed disabled:opacity-50',
-      className,
-    )}
+    className={cn('app-field flex h-9 w-full px-3 py-1.5 text-sm', className)}
     {...props}
   >
     {children}
@@ -24,10 +21,7 @@ export const Textarea = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <textarea
     ref={ref}
-    className={cn(
-      'flex min-h-20 w-full rounded-md border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-[var(--ink-primary)] placeholder:text-[var(--ink-muted)]/70 transition-colors disabled:cursor-not-allowed disabled:opacity-50',
-      className,
-    )}
+    className={cn('app-field flex min-h-24 w-full resize-y px-3 py-2 text-sm leading-relaxed', className)}
     {...props}
   />
 ));

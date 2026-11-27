@@ -23,6 +23,8 @@ import {
   Label,
   PageHeader,
   Select,
+  SkeletonStatStrip,
+  SkeletonTable,
   StatusBadge,
 } from '@portal/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -126,11 +128,39 @@ export default function AdminTicketDetailPage() {
     },
   });
 
-  if (ticketQuery.isLoading || !ticket) {
-    return <p className="py-8 text-xs text-[var(--ink-muted)]">{t.common.loading}</p>;
+  if (ticketQuery.isError) {
+    return (
+      <AlertBanner tone="crimson">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span>
+            {translateError(
+              typeof ticketQuery.error === 'object' &&
+                ticketQuery.error !== null &&
+                'code' in ticketQuery.error
+                ? String(ticketQuery.error.code)
+                : undefined,
+              ticketQuery.error instanceof Error ? ticketQuery.error.message : t.common.noData,
+            )}
+          </span>
+          <Button variant="outline" size="sm" onClick={() => void ticketQuery.refetch()}>
+            {t.common.retry}
+          </Button>
+        </div>
+      </AlertBanner>
+    );
   }
 
-  const canUpdate = hasPermission(PERMISSIONS.TICKET_UPDATE) || hasPermission(PERMISSIONS.TICKET_ASSIGN);
+  if (ticketQuery.isLoading || !ticket) {
+    return (
+      <div className="space-y-6">
+        <SkeletonStatStrip items={3} />
+        <SkeletonTable rows={5} columns={3} />
+      </div>
+    );
+  }
+
+  const canUpdate =
+    hasPermission(PERMISSIONS.TICKET_UPDATE) || hasPermission(PERMISSIONS.TICKET_ASSIGN);
   const canReopen =
     hasPermission(PERMISSIONS.TICKET_REOPEN) &&
     (ticket.status === 'resolved' || ticket.status === 'closed');
@@ -141,7 +171,7 @@ export default function AdminTicketDetailPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow={`${ticket.ticketNumber} · ${ticket.customerName} · ${ticket.categoryName}`}
+        eyebrow={`${ticket.ticketNumber}, ${ticket.customerName} (${ticket.categoryName})`}
         title={ticket.subject}
         description={`${t.common.timestamp}: ${formatDateTime(ticket.createdAt)}`}
         actions={
@@ -157,11 +187,7 @@ export default function AdminTicketDetailPage() {
               }
             />
             {canReopen ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => reopenMutation.mutate()}
-              >
+              <Button variant="outline" size="sm" onClick={() => reopenMutation.mutate()}>
                 {t.tickets.reopenTicket}
               </Button>
             ) : null}
@@ -171,15 +197,16 @@ export default function AdminTicketDetailPage() {
 
       {errorMsg ? <AlertBanner tone="crimson">{errorMsg}</AlertBanner> : null}
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-2">
+      <div className="grid gap-6 lg:grid-cols-12">
+        <div className="space-y-6 lg:col-span-8">
           <Card>
             <CardHeader>
               <CardTitle>{t.tickets.conversationTitle}</CardTitle>
               <CardDescription>{t.tickets.adminDescription}</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-0">
               <ConversationThread
+                embedded
                 messages={messagesQuery.data ?? []}
                 currentUserId={user?.id ?? ''}
                 canSendPublic={canSendPublic}
@@ -207,15 +234,16 @@ export default function AdminTicketDetailPage() {
           </Card>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-6 lg:col-span-4">
           <Card>
             <CardHeader>
               <CardTitle>{t.common.actions}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-1.5">
-                <Label>{t.common.status}</Label>
+                <Label htmlFor="tk-status">{t.common.status}</Label>
                 <Select
+                  id="tk-status"
                   value={ticket.status}
                   disabled={!canUpdate || updateMutation.isPending}
                   onChange={(e) => updateMutation.mutate({ status: e.target.value })}
@@ -229,8 +257,9 @@ export default function AdminTicketDetailPage() {
               </div>
 
               <div className="space-y-1.5">
-                <Label>{t.common.priority}</Label>
+                <Label htmlFor="tk-prio">{t.common.priority}</Label>
                 <Select
+                  id="tk-prio"
                   value={ticket.priority}
                   disabled={!canUpdate || updateMutation.isPending}
                   onChange={(e) => updateMutation.mutate({ priority: e.target.value })}
@@ -244,8 +273,9 @@ export default function AdminTicketDetailPage() {
               </div>
 
               <div className="space-y-1.5">
-                <Label>{t.common.department}</Label>
+                <Label htmlFor="tk-dept">{t.common.department}</Label>
                 <Select
+                  id="tk-dept"
                   value={ticket.assignedDepartmentId ?? ''}
                   disabled={!canUpdate || updateMutation.isPending}
                   onChange={(e) =>
@@ -262,8 +292,9 @@ export default function AdminTicketDetailPage() {
               </div>
 
               <div className="space-y-1.5">
-                <Label>{t.tickets.assignee}</Label>
+                <Label htmlFor="tk-assignee">{t.tickets.assignee}</Label>
                 <Select
+                  id="tk-assignee"
                   value={ticket.assignedEmployeeId ?? ''}
                   disabled={!canUpdate || updateMutation.isPending}
                   onChange={(e) =>
@@ -280,13 +311,13 @@ export default function AdminTicketDetailPage() {
               </div>
 
               {ticket.orderId && ticket.orderNumber ? (
-                <div className="border-t border-[var(--border-hairline)] pt-3 text-xs">
-                  <p className="text-[var(--ink-muted)]">{t.tickets.linkedOrder}</p>
+                <div className="border-t border-[var(--color-rule)] pt-3 text-xs">
+                  <p className="mb-1 text-[var(--color-muted)]">{t.tickets.linkedOrder}</p>
                   <Link
                     href={`/orders/${ticket.orderId}`}
-                    className="font-mono-tabular font-medium text-[var(--accent-cobalt)] hover:underline"
+                    className="font-mono-tabular font-medium text-[var(--color-accent-2)] hover:underline"
                   >
-                    {ticket.orderNumber} · {ticket.orderTitle}
+                    {`${ticket.orderNumber} (${ticket.orderTitle})`}
                   </Link>
                 </div>
               ) : null}

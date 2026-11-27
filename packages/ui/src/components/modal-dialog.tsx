@@ -1,5 +1,6 @@
 'use client';
 
+import { useI18n } from '@portal/i18n/react';
 import { X } from 'lucide-react';
 import * as React from 'react';
 import { cn } from '../lib/cn';
@@ -21,52 +22,75 @@ export function ModalDialog({
   children,
   className,
 }: ModalDialogProps) {
-  React.useEffect(() => {
-    if (!open) return;
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [open, onClose]);
+  const dialogRef = React.useRef<HTMLDialogElement | null>(null);
+  const previousFocusRef = React.useRef<HTMLElement | null>(null);
+  const { t } = useI18n();
+  const titleId = React.useId();
+  const descId = React.useId();
 
-  if (!open) return null;
+  React.useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+
+    if (open) {
+      previousFocusRef.current =
+        document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      if (!dialog.open) {
+        dialog.showModal();
+      }
+    } else {
+      if (dialog.open) {
+        dialog.close();
+      }
+      previousFocusRef.current?.focus();
+      previousFocusRef.current = null;
+    }
+  }, [open]);
+
+  const isWide = Boolean(className && /\bmax-w-(2xl|3xl|4xl)\b/.test(className));
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      role="dialog"
-      aria-modal="true"
+    <dialog
+      ref={dialogRef}
+      aria-labelledby={titleId}
+      aria-describedby={description ? descId : undefined}
+      data-size={isWide ? 'wide' : undefined}
+      onCancel={(e) => {
+        e.preventDefault();
+        onClose();
+      }}
+      onClick={(e) => {
+        if (e.target === dialogRef.current) {
+          onClose();
+        }
+      }}
+      className={cn('app-dialog open:flex open:flex-col', !open && 'hidden', className)}
     >
-      <div
-        className="fixed inset-0 bg-black/45 backdrop-blur-[1px]"
-        onClick={onClose}
-        aria-hidden="true"
-      />
-      <div
-        className={cn(
-          'relative z-10 w-full max-w-lg rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface)] shadow-lg',
-          className,
-        )}
-      >
-        <div className="flex items-start justify-between gap-4 border-b border-[var(--border-hairline)] px-5 py-4">
-          <div>
-            <h2 className="text-sm font-semibold text-[var(--ink-primary)]">{title}</h2>
-            {description ? (
-              <p className="mt-0.5 text-xs text-[var(--ink-muted)]">{description}</p>
-            ) : null}
+      {open ? (
+        <>
+          <div className="flex items-start justify-between gap-4 border-b border-[var(--color-rule)] px-5 py-4">
+            <div className="min-w-0 space-y-1">
+              <h2 id={titleId} className="text-base font-semibold text-[var(--color-ink)]">
+                {title}
+              </h2>
+              {description ? (
+                <p id={descId} className="text-xs leading-relaxed text-[var(--color-muted)]">
+                  {description}
+                </p>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label={t.common.close}
+              className="relative flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-[var(--radius-input)] text-[var(--color-muted)] transition-colors duration-[var(--dur-micro)] before:absolute before:-inset-1.5 before:content-[''] hover:bg-[var(--color-paper-2)] hover:text-[var(--color-ink)] active:translate-y-px"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close modal"
-            className="rounded p-1 text-[var(--ink-muted)] hover:bg-[var(--bg-subtle)] hover:text-[var(--ink-primary)]"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <div className="max-h-[80vh] overflow-y-auto p-5">{children}</div>
-      </div>
-    </div>
+          <div className="overflow-y-auto p-5">{children}</div>
+        </>
+      ) : null}
+    </dialog>
   );
 }

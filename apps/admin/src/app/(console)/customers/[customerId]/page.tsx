@@ -1,5 +1,7 @@
 'use client';
 
+import { useAdminSession } from '@/hooks/use-admin-session';
+import { adminApi } from '@/lib/api';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useI18n } from '@portal/i18n/react';
 import {
@@ -24,6 +26,8 @@ import {
   ModalDialog,
   PageHeader,
   Select,
+  SkeletonStatStrip,
+  SkeletonTable,
   StatusBadge,
   Textarea,
 } from '@portal/ui';
@@ -41,8 +45,6 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import * as React from 'react';
 import { useForm } from 'react-hook-form';
-import { useAdminSession } from '@/hooks/use-admin-session';
-import { adminApi } from '@/lib/api';
 
 export default function AdminCustomerDetailPage() {
   const params = useParams<{ customerId: string }>();
@@ -153,6 +155,7 @@ export default function AdminCustomerDetailPage() {
         queryKey: ['admin', 'customer', customerId, 'members'],
       });
     },
+    onError: (err) => setErrorMsg(extractErr(err, 'Unable to update member status')),
   });
 
   const addContact = useMutation({
@@ -177,35 +180,57 @@ export default function AdminCustomerDetailPage() {
         queryKey: ['admin', 'customer', customerId, 'contacts'],
       });
     },
+    onError: (err) => setErrorMsg(extractErr(err, 'Unable to delete contact')),
   });
+
+  const queryError = customerQuery.error ?? membersQuery.error ?? contactsQuery.error;
+
+  if (customerQuery.isLoading) {
+    return (
+      <div className="space-y-6">
+        <SkeletonStatStrip items={3} />
+        <SkeletonTable rows={5} columns={5} />
+      </div>
+    );
+  }
+
+  if (customerQuery.isError || !customer) {
+    return (
+      <AlertBanner tone="crimson">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span>{extractErr(customerQuery.error, t.common.noData)}</span>
+          <Button variant="outline" size="sm" onClick={() => void customerQuery.refetch()}>
+            {t.common.retry}
+          </Button>
+        </div>
+      </AlertBanner>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow={
           customer
-            ? `${customer.customerCode} · ${t.admin.customers.detailEyebrow}`
+            ? `${customer.customerCode} (${t.admin.customers.detailEyebrow})`
             : t.admin.customers.detailEyebrow
         }
         title={customer?.companyName ?? t.common.loading}
         description={t.admin.customers.description}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Link
-              href="/customers"
-              className="rounded-md border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-3 py-1.5 text-xs font-medium hover:bg-[var(--bg-subtle)]"
-            >
-              {t.admin.customers.backToDirectory}
-            </Link>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/customers">{t.admin.customers.backToDirectory}</Link>
+            </Button>
             {canManageContacts ? (
               <Button variant="outline" size="sm" onClick={() => setContactOpen(true)}>
-                <Plus className="h-3.5 w-3.5" />
+                <Plus className="h-3.5 w-3.5" aria-hidden="true" />
                 {t.portal.team.addContact}
               </Button>
             ) : null}
             {canManageMembers ? (
               <Button size="sm" onClick={() => setCreateMemberOpen(true)}>
-                <UserPlus className="h-3.5 w-3.5" />
+                <UserPlus className="h-3.5 w-3.5" aria-hidden="true" />
                 {t.admin.customers.createPortalUser}
               </Button>
             ) : null}
@@ -214,10 +239,27 @@ export default function AdminCustomerDetailPage() {
       />
 
       {errorMsg ? <AlertBanner tone="crimson">{errorMsg}</AlertBanner> : null}
+      {queryError ? (
+        <AlertBanner tone="crimson">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span>{extractErr(queryError, t.common.noData)}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                void membersQuery.refetch();
+                void contactsQuery.refetch();
+              }}
+            >
+              {t.common.retry}
+            </Button>
+          </div>
+        </AlertBanner>
+      ) : null}
       {statusMsg ? <AlertBanner tone="emerald">{statusMsg}</AlertBanner> : null}
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-1">
+      <div className="grid gap-6 lg:grid-cols-12">
+        <Card className="lg:col-span-4">
           <CardHeader>
             <CardTitle>{t.admin.customers.companyProfileTitle}</CardTitle>
             <CardDescription>{t.admin.customers.companyProfileDesc}</CardDescription>
@@ -225,7 +267,7 @@ export default function AdminCustomerDetailPage() {
           <CardContent>
             <form
               onSubmit={updateForm.handleSubmit((v) => saveCustomer.mutate(v))}
-              className="space-y-3"
+              className="space-y-3.5"
             >
               <div className="space-y-1">
                 <Label htmlFor="c360-name">{t.admin.customers.companyName}</Label>
@@ -243,7 +285,7 @@ export default function AdminCustomerDetailPage() {
                   {...updateForm.register('legalName')}
                 />
               </div>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1">
                   <Label htmlFor="c360-status">{t.common.status}</Label>
                   <Select
@@ -299,80 +341,104 @@ export default function AdminCustomerDetailPage() {
           </CardContent>
         </Card>
 
-        <div className="space-y-6 lg:col-span-2">
-          <Card>
+        <div className="space-y-6 lg:col-span-8">
+          <Card className="overflow-hidden">
             <CardHeader>
               <CardTitle>{t.admin.customers.portalMembersTitle}</CardTitle>
               <CardDescription>{t.admin.customers.portalMembersDesc}</CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full text-start text-xs">
-                  <thead>
-                    <tr className="border-b border-[var(--border-hairline)] text-[var(--ink-muted)]">
-                      <th className="py-2 pe-4 font-medium">{t.common.fullName}</th>
-                      <th className="py-2 pe-4 font-medium">{t.common.phone}</th>
-                      <th className="py-2 pe-4 font-medium">{t.common.email}</th>
-                      <th className="py-2 pe-4 font-medium">{t.common.role}</th>
-                      <th className="py-2 pe-4 font-medium">{t.common.status}</th>
-                      {canManageMembers ? (
-                        <th className="py-2 text-end font-medium">{t.common.actions}</th>
-                      ) : null}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[var(--border-hairline)]">
-                    {membersQuery.data?.map((m) => (
-                      <tr key={m.id}>
-                        <td className="py-2.5 pe-4 font-medium">{m.fullName}</td>
-                        <td
-                          dir="ltr"
-                          className="font-mono-tabular py-2.5 pe-4 text-start text-[var(--ink-muted)]"
-                        >
-                          {m.phone ?? '—'}
-                        </td>
-                        <td
-                          dir="ltr"
-                          className="font-mono-tabular py-2.5 pe-4 text-start text-[var(--ink-muted)]"
-                        >
-                          {m.email ?? '—'}
-                        </td>
-                        <td className="py-2.5 pe-4">
-                          <StatusBadge label={translateRole(m.roleSlug)} tone="cobalt" />
-                        </td>
-                        <td className="py-2.5 pe-4">
-                          <StatusBadge
-                            label={translateStatus(m.userStatus)}
-                            tone={m.userStatus === 'active' ? 'emerald' : 'crimson'}
-                          />
-                        </td>
+            <CardContent className="p-0">
+              {membersQuery.isLoading ? (
+                <SkeletonTable rows={3} columns={5} />
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-start text-xs">
+                    <thead>
+                      <tr className="border-b border-[var(--color-rule)] bg-[var(--color-paper-2)]/75 text-[var(--color-muted)]">
+                        <th className="whitespace-nowrap px-4 py-2.5 font-medium">
+                          {t.common.fullName}
+                        </th>
+                        <th className="whitespace-nowrap px-4 py-2.5 font-medium">
+                          {t.common.phone}
+                        </th>
+                        <th className="whitespace-nowrap px-4 py-2.5 font-medium">
+                          {t.common.email}
+                        </th>
+                        <th className="whitespace-nowrap px-4 py-2.5 font-medium">
+                          {t.common.role}
+                        </th>
+                        <th className="whitespace-nowrap px-4 py-2.5 font-medium">
+                          {t.common.status}
+                        </th>
                         {canManageMembers ? (
-                          <td className="py-2.5 text-end">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() =>
-                                toggleMember.mutate({
-                                  id: m.id,
-                                  status: m.userStatus === 'active' ? 'suspended' : 'active',
-                                })
-                              }
-                            >
-                              {m.userStatus === 'active' ? t.common.suspend : t.common.activate}
-                            </Button>
-                          </td>
+                          <th className="whitespace-nowrap px-4 py-2.5 text-end font-medium">
+                            {t.common.actions}
+                          </th>
                         ) : null}
                       </tr>
-                    ))}
-                    {(membersQuery.data?.length ?? 0) === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="py-4 text-[var(--ink-muted)]">
-                          {t.admin.customers.noMembers}
-                        </td>
-                      </tr>
-                    ) : null}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--color-rule)]">
+                      {membersQuery.data?.map((m) => (
+                        <tr key={m.id}>
+                          <td className="px-4 py-3 font-medium text-[var(--color-ink)]">
+                            {m.fullName}
+                          </td>
+                          <td className="font-mono-tabular px-4 py-3 text-start text-[var(--color-muted)]">
+                            {m.phone ? (
+                              <span dir="ltr" className="inline-block">
+                                {m.phone}
+                              </span>
+                            ) : (
+                              '-'
+                            )}
+                          </td>
+                          <td className="font-mono-tabular px-4 py-3 text-start text-[var(--color-muted)]">
+                            {m.email ? (
+                              <span dir="ltr" className="inline-block">
+                                {m.email}
+                              </span>
+                            ) : (
+                              '-'
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <StatusBadge label={translateRole(m.roleSlug)} tone="cobalt" />
+                          </td>
+                          <td className="px-4 py-3">
+                            <StatusBadge
+                              label={translateStatus(m.userStatus)}
+                              tone={m.userStatus === 'active' ? 'emerald' : 'crimson'}
+                            />
+                          </td>
+                          {canManageMembers ? (
+                            <td className="px-4 py-3 text-end">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  toggleMember.mutate({
+                                    id: m.id,
+                                    status: m.userStatus === 'active' ? 'suspended' : 'active',
+                                  })
+                                }
+                              >
+                                {m.userStatus === 'active' ? t.common.suspend : t.common.activate}
+                              </Button>
+                            </td>
+                          ) : null}
+                        </tr>
+                      ))}
+                      {(membersQuery.data?.length ?? 0) === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="px-4 py-5 text-[var(--color-muted)]">
+                            {t.admin.customers.noMembers}
+                          </td>
+                        </tr>
+                      ) : null}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -381,40 +447,56 @@ export default function AdminCustomerDetailPage() {
               <CardTitle>{t.admin.customers.contactsTitle}</CardTitle>
               <CardDescription>{t.admin.customers.contactsDesc}</CardDescription>
             </CardHeader>
-            <CardContent className="divide-y divide-[var(--border-hairline)]">
-              {contactsQuery.data?.map((c) => (
-                <div key={c.id} className="flex items-center justify-between py-2.5 text-xs">
-                  <div>
-                    <p className="font-medium">
-                      {c.fullName}{' '}
-                      {c.jobTitle ? (
-                        <span className="font-normal text-[var(--ink-muted)]">· {c.jobTitle}</span>
-                      ) : null}
-                    </p>
-                    <p
-                      dir="ltr"
-                      className="font-mono-tabular text-start text-[11px] text-[var(--ink-muted)]"
-                    >
-                      {[c.email, c.phone, c.departmentLabel].filter(Boolean).join(' · ') || '—'}
-                    </p>
-                  </div>
-                  {canManageContacts ? (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label={`${t.common.delete} ${c.fullName}`}
-                      onClick={() => deleteContact.mutate(c.id)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5 text-[var(--signal-crimson)]" />
-                    </Button>
-                  ) : null}
-                </div>
-              ))}
-              {(contactsQuery.data?.length ?? 0) === 0 ? (
-                <p className="py-3 text-xs text-[var(--ink-muted)]">
+            <CardContent className="divide-y divide-[var(--color-rule)]">
+              {contactsQuery.isLoading ? (
+                <SkeletonTable rows={3} columns={2} />
+              ) : contactsQuery.isError ? null : (contactsQuery.data?.length ?? 0) === 0 ? (
+                <p className="py-3 text-xs text-[var(--color-muted)]">
                   {t.admin.customers.noContacts}
                 </p>
-              ) : null}
+              ) : (
+                contactsQuery.data?.map((c) => (
+                  <div key={c.id} className="flex items-center justify-between gap-3 py-3 text-xs">
+                    <div className="space-y-0.5">
+                      <p className="font-medium text-[var(--color-ink)]">
+                        {c.fullName}{' '}
+                        {c.jobTitle ? (
+                          <span className="font-normal text-[var(--color-muted)]">
+                            ({c.jobTitle})
+                          </span>
+                        ) : null}
+                      </p>
+                      <p className="text-start text-xs text-[var(--color-muted)]">
+                        {c.email || c.phone ? (
+                          <span dir="ltr" className="font-mono-tabular inline-block">
+                            {[c.email, c.phone].filter(Boolean).join(', ')}
+                          </span>
+                        ) : null}
+                        {c.departmentLabel ? (
+                          <span>
+                            {c.email || c.phone ? ', ' : ''}
+                            {c.departmentLabel}
+                          </span>
+                        ) : null}
+                        {!c.email && !c.phone && !c.departmentLabel ? '-' : null}
+                      </p>
+                    </div>
+                    {canManageContacts ? (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`${t.common.delete} ${c.fullName}`}
+                        onClick={() => deleteContact.mutate(c.id)}
+                      >
+                        <Trash2
+                          className="h-3.5 w-3.5 text-[var(--color-signal-crimson)]"
+                          aria-hidden="true"
+                        />
+                      </Button>
+                    ) : null}
+                  </div>
+                ))
+              )}
             </CardContent>
           </Card>
         </div>
@@ -432,12 +514,15 @@ export default function AdminCustomerDetailPage() {
         >
           <div className="space-y-1.5">
             <Label htmlFor="m-name">{t.common.fullName}</Label>
-            <Input id="m-name" {...memberForm.register('fullName')} />
-            {memberForm.formState.errors.fullName ? (
-              <p className="text-xs text-[var(--signal-crimson)]">
-                {memberForm.formState.errors.fullName.message}
-              </p>
-            ) : null}
+            <Input
+              id="m-name"
+              aria-invalid={Boolean(memberForm.formState.errors.fullName)}
+              aria-describedby="m-name-err"
+              {...memberForm.register('fullName')}
+            />
+            <p id="m-name-err" className="min-h-[1lh] text-xs text-[var(--color-error)]">
+              {memberForm.formState.errors.fullName?.message ?? ''}
+            </p>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="m-phone">{t.common.phone}</Label>
@@ -446,24 +531,29 @@ export default function AdminCustomerDetailPage() {
               type="tel"
               dir="ltr"
               placeholder="+989123456789"
+              aria-invalid={Boolean(memberForm.formState.errors.phone)}
+              aria-describedby="m-phone-err"
               {...memberForm.register('phone')}
             />
-            {memberForm.formState.errors.phone ? (
-              <p className="text-xs text-[var(--signal-crimson)]">
-                {memberForm.formState.errors.phone.message}
-              </p>
-            ) : null}
+            <p id="m-phone-err" className="min-h-[1lh] text-xs text-[var(--color-error)]">
+              {memberForm.formState.errors.phone?.message ?? ''}
+            </p>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="m-email">
               {t.common.email} ({t.common.optional})
             </Label>
-            <Input id="m-email" type="email" dir="ltr" {...memberForm.register('email')} />
-            {memberForm.formState.errors.email ? (
-              <p className="text-xs text-[var(--signal-crimson)]">
-                {memberForm.formState.errors.email.message}
-              </p>
-            ) : null}
+            <Input
+              id="m-email"
+              type="email"
+              dir="ltr"
+              aria-invalid={Boolean(memberForm.formState.errors.email)}
+              aria-describedby="m-email-err"
+              {...memberForm.register('email')}
+            />
+            <p id="m-email-err" className="min-h-[1lh] text-xs text-[var(--color-error)]">
+              {memberForm.formState.errors.email?.message ?? ''}
+            </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
@@ -505,7 +595,15 @@ export default function AdminCustomerDetailPage() {
         >
           <div className="space-y-1.5">
             <Label htmlFor="ac-name">{t.common.fullName}</Label>
-            <Input id="ac-name" {...contactForm.register('fullName')} />
+            <Input
+              id="ac-name"
+              aria-invalid={Boolean(contactForm.formState.errors.fullName)}
+              aria-describedby="ac-name-err"
+              {...contactForm.register('fullName')}
+            />
+            <p id="ac-name-err" className="min-h-[1lh] text-xs text-[var(--color-error)]">
+              {contactForm.formState.errors.fullName?.message ?? ''}
+            </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">

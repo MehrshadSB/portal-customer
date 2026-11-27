@@ -6,10 +6,7 @@ export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttribute
     <input
       ref={ref}
       type={type}
-      className={cn(
-        'flex h-9 w-full rounded-md border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-3 py-1.5 text-sm text-[var(--ink-primary)] placeholder:text-[var(--ink-muted)]/70 transition-colors disabled:cursor-not-allowed disabled:opacity-50',
-        className,
-      )}
+      className={cn('app-field flex h-9 w-full px-3 py-1.5 text-sm', className)}
       {...props}
     />
   ),
@@ -20,7 +17,7 @@ export const Label = React.forwardRef<HTMLLabelElement, React.LabelHTMLAttribute
   ({ className, ...props }, ref) => (
     <label
       ref={ref}
-      className={cn('text-xs font-medium text-[var(--ink-primary)]', className)}
+      className={cn('block text-xs font-medium text-[var(--color-ink-2)]', className)}
       {...props}
     />
   ),

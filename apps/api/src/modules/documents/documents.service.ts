@@ -41,7 +41,7 @@ import {
   tickets,
   users,
 } from '../../infrastructure/database/schema';
-import { S3_CLIENT } from '../../infrastructure/storage/storage.module';
+import { S3_CLIENT, S3_PRESIGN_CLIENT } from '../../infrastructure/storage/storage.module';
 import { AuditService } from '../audit/audit.service';
 
 const ALLOWED_MIME_SET = new Set<string>(ALLOWED_DOCUMENT_MIME_TYPES);
@@ -149,6 +149,7 @@ export class DocumentsService {
   constructor(
     @Inject(DRIZZLE_DB) private readonly db: DrizzleDb,
     @Inject(S3_CLIENT) private readonly s3: S3Client,
+    @Inject(S3_PRESIGN_CLIENT) private readonly s3Presign: S3Client,
     config: ConfigService<AppEnv, true>,
     private readonly auditService: AuditService,
   ) {
@@ -309,7 +310,7 @@ export class DocumentsService {
       Key: storageKey,
       ContentType: dto.mimeType,
     });
-    const uploadUrl = await getSignedUrl(this.s3, command, { expiresIn: expiresInSeconds });
+    const uploadUrl = await getSignedUrl(this.s3Presign, command, { expiresIn: expiresInSeconds });
 
     return {
       attachmentId: created.id,
@@ -551,7 +552,7 @@ export class DocumentsService {
       Key: att.storageKey,
       ResponseContentDisposition: `attachment; filename="${safeName}"`,
     });
-    const downloadUrl = await getSignedUrl(this.s3, command, { expiresIn: expiresInSeconds });
+    const downloadUrl = await getSignedUrl(this.s3Presign, command, { expiresIn: expiresInSeconds });
 
     return { downloadUrl, filename: att.originalFilename, expiresInSeconds };
   }

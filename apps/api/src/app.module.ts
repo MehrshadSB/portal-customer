@@ -40,16 +40,25 @@ import { WorkflowsModule } from './modules/workflows/workflows.module';
     }),
     LoggerModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService<AppEnv, true>) => ({
-        pinoHttp: {
-          level: config.get('NODE_ENV', { infer: true }) === 'production' ? 'info' : 'debug',
-          transport:
-            config.get('NODE_ENV', { infer: true }) !== 'production'
-              ? { target: 'pino-pretty', options: { singleLine: true } }
-              : undefined,
-          redact: ['req.headers.cookie', 'req.headers.authorization'],
-        },
-      }),
+      useFactory: (config: ConfigService<AppEnv, true>) => {
+        const isProd = config.get('NODE_ENV', { infer: true }) === 'production';
+        let hasPretty = false;
+        if (!isProd) {
+          try {
+            require.resolve('pino-pretty');
+            hasPretty = true;
+          } catch {
+            hasPretty = false;
+          }
+        }
+        return {
+          pinoHttp: {
+            level: isProd ? 'info' : 'debug',
+            transport: hasPretty ? { target: 'pino-pretty', options: { singleLine: true } } : undefined,
+            redact: ['req.headers.cookie', 'req.headers.authorization'],
+          },
+        };
+      },
     }),
     BullModule.forRootAsync({
       inject: [ConfigService],

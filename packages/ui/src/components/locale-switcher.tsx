@@ -26,11 +26,11 @@ export function LocaleSwitcher({ onLocaleChange, className }: LocaleSwitcherProp
       role="group"
       aria-label={t.meta.languageLabel}
       className={cn(
-        'inline-flex items-center gap-0.5 rounded-md border border-[var(--border-hairline)] bg-[var(--bg-subtle)] p-0.5',
+        'app-groove inline-flex h-8 items-center gap-0.5 rounded-[var(--radius-input)] p-0.5',
         className,
       )}
     >
-      <Globe className="mx-1.5 h-3.5 w-3.5 text-[var(--ink-muted)]" aria-hidden="true" />
+      <Globe className="mx-1.5 h-3.5 w-3.5 shrink-0 text-[var(--color-muted)]" aria-hidden="true" />
       {enabledLocales.map((code) => {
         const active = locale === code;
         return (
@@ -40,10 +40,10 @@ export function LocaleSwitcher({ onLocaleChange, className }: LocaleSwitcherProp
             onClick={() => handleSelect(code)}
             aria-pressed={active}
             className={cn(
-              'font-mono-tabular rounded px-2 py-1 text-[11px] font-medium transition-colors cursor-pointer',
+              'relative cursor-pointer whitespace-nowrap rounded-[4px] px-2.5 py-1 text-xs font-medium transition-colors duration-[var(--dur-micro)] before:absolute before:-inset-1.5 before:content-[""]',
               active
-                ? 'bg-[var(--bg-surface)] text-[var(--accent-cobalt)] shadow-2xs'
-                : 'text-[var(--ink-muted)] hover:text-[var(--ink-primary)]',
+                ? 'bg-[var(--color-cotton)] text-[var(--color-ink)] shadow-[var(--shadow-card)]'
+                : 'text-[var(--color-muted)] hover:text-[var(--color-ink)]',
             )}
           >
             {code === 'fa' ? 'فارسی' : 'EN'}

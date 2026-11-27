@@ -8,6 +8,7 @@ import {
   type TicketDetailDto,
 } from '@portal/types';
 import {
+  AlertBanner,
   Button,
   Card,
   CardContent,
@@ -16,6 +17,8 @@ import {
   CardTitle,
   ConversationThread,
   PageHeader,
+  SkeletonStatStrip,
+  SkeletonTable,
   StatusBadge,
 } from '@portal/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -34,7 +37,7 @@ export default function PortalTicketDetailPage() {
   const params = useParams<{ ticketId: string }>();
   const ticketId = params.ticketId;
   const { user, hasPermission } = usePortalSession(false);
-  const { t, formatDateTime, translateStatus } = useI18n();
+  const { t, formatDateTime, translateError, translateStatus } = useI18n();
   const queryClient = useQueryClient();
 
   const ticketQuery = useQuery({
@@ -89,8 +92,35 @@ export default function PortalTicketDetailPage() {
     },
   });
 
-  if (ticketQuery.isLoading || !ticket) {
-    return <p className="py-8 text-xs text-[var(--ink-muted)]">{t.common.loading}</p>;
+  if (ticketQuery.isLoading) {
+    return (
+      <div className="space-y-6">
+        <SkeletonStatStrip items={2} />
+        <SkeletonTable rows={4} columns={2} />
+      </div>
+    );
+  }
+
+  if (ticketQuery.isError || !ticket) {
+    return (
+      <AlertBanner tone="crimson">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span>
+            {translateError(
+              typeof ticketQuery.error === 'object' &&
+                ticketQuery.error !== null &&
+                'code' in ticketQuery.error
+                ? String(ticketQuery.error.code)
+                : undefined,
+              ticketQuery.error instanceof Error ? ticketQuery.error.message : t.common.noData,
+            )}
+          </span>
+          <Button variant="outline" size="sm" onClick={() => void ticketQuery.refetch()}>
+            {t.common.retry}
+          </Button>
+        </div>
+      </AlertBanner>
+    );
   }
 
   const canSendPublic = hasPermission(PERMISSIONS.MESSAGE_SEND_PUBLIC);
@@ -102,7 +132,7 @@ export default function PortalTicketDetailPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow={`${ticket.ticketNumber} · ${ticket.categoryName}`}
+        eyebrow={`${ticket.ticketNumber}: ${ticket.categoryName}`}
         title={ticket.subject}
         description={`${t.common.timestamp}: ${formatDateTime(ticket.createdAt)}`}
         actions={
@@ -132,19 +162,32 @@ export default function PortalTicketDetailPage() {
         }
       />
 
+      {reopenMutation.isError ? (
+        <AlertBanner tone="crimson">
+          {translateError(
+            typeof reopenMutation.error === 'object' &&
+              reopenMutation.error !== null &&
+              'code' in reopenMutation.error
+              ? String(reopenMutation.error.code)
+              : undefined,
+            reopenMutation.error instanceof Error ? reopenMutation.error.message : t.common.noData,
+          )}
+        </AlertBanner>
+      ) : null}
+
       {ticket.orderId && ticket.orderNumber ? (
         <Card>
           <CardContent className="flex flex-wrap items-center justify-between gap-3 py-3 text-xs">
-            <span>
+            <span className="text-[var(--color-ink)]">
               {t.tickets.linkedOrder}:{' '}
-              <strong dir="ltr" className="font-mono-tabular">
+              <strong dir="ltr" className="font-mono-tabular font-semibold">
                 {ticket.orderNumber}
-              </strong>{' '}
-              — {ticket.orderTitle}
+              </strong>
+              {ticket.orderTitle ? `: ${ticket.orderTitle}` : ''}
             </span>
             <Link
               href={`/orders/${ticket.orderId}`}
-              className="font-medium text-[var(--accent-cobalt)] hover:underline"
+              className="font-medium text-[var(--color-accent-2)] hover:underline"
             >
               {t.common.inspect}
             </Link>
@@ -157,8 +200,9 @@ export default function PortalTicketDetailPage() {
           <CardTitle>{t.tickets.conversationTitle}</CardTitle>
           <CardDescription>{t.conversations.publicMode}</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           <ConversationThread
+            embedded
             messages={messagesQuery.data ?? []}
             currentUserId={user?.id ?? ''}
             canSendPublic={canSendPublic}

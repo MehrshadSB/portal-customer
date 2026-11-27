@@ -1,77 +1,186 @@
-/* Precision Industrial Blueprint Design Tokens (Persian RTL & English LTR) */
-:root {
-  --bg-canvas: #f6f7f9;
-  --bg-surface: #ffffff;
-  --bg-subtle: #edf1f5;
-  --border-hairline: #dce1e8;
-  --ink-primary: #111827;
-  --ink-muted: #526075;
-  --accent-cobalt: #1d4ed8;
-  --accent-cobalt-hover: #1e40af;
-  --signal-amber: #d97706;
-  --signal-amber-surface: #fef3c7;
-  --signal-emerald: #047857;
-  --signal-emerald-surface: #d1fae5;
-  --signal-crimson: #dc2626;
-  --signal-crimson-surface: #fee2e2;
-  --signal-slate: #475569;
-  --signal-slate-surface: #f1f5f9;
-}
-
-.dark {
-  --bg-canvas: #0d1117;
-  --bg-surface: #151b23;
-  --bg-subtle: #1e2631;
-  --border-hairline: #2b3544;
-  --ink-primary: #f1f5f9;
-  --ink-muted: #94a3b8;
-  --accent-cobalt: #3b82f6;
-  --accent-cobalt-hover: #60a5fa;
-  --signal-amber: #f59e0b;
-  --signal-amber-surface: #451a03;
-  --signal-emerald: #10b981;
-  --signal-emerald-surface: #064e3b;
-  --signal-crimson: #ef4444;
-  --signal-crimson-surface: #450a0a;
-  --signal-slate: #94a3b8;
-  --signal-slate-surface: #1e293b;
-}
-
-@layer base {
-  html,
-  body {
-    background-color: var(--bg-canvas);
-    color: var(--ink-primary);
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-  }
-
-  *:focus-visible {
-    outline: 2px solid var(--accent-cobalt);
-    outline-offset: 2px;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    *,
-    *::before,
-    *::after {
-      animation-duration: 0.01ms !important;
-      animation-iteration-count: 1 !important;
-      transition-duration: 0.01ms !important;
-      scroll-behavior: auto !important;
-    }
-  }
-}
+/* Hallmark · shape: app screen · genre: modern-minimal · theme: Coral (deal 3/3, seed automotive-coatings-chemical-manufacturing-e55f·50cc628f·2026-11-27·r0) · redesign: full
+ * nav: admin sidebar rail and portal workspace topbar · signature: production batch ledger and stage workflow · states: loading, empty, error, full · v2.0.0
+ * axes: light/grotesk-sans/warm · posture: restrained · contrast: pass · v2.0.0 */
+/* Hallmark · pre-emit critique: P5 H4 E5 S4 R5 V4 · weakest: S, anchored palette and chrome to automotive coatings manufacturing batches and QC ledger */
+@import "./tokens.css";
+@import "./base.css" layer(base);
 
 .font-mono-tabular {
-  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-family: var(--font-outlier);
   font-variant-numeric: tabular-nums;
   unicode-bidi: isolate;
 }
 
-.blueprint-grid {
-  background-image:
-    linear-gradient(to right, rgba(29, 78, 216, 0.04) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(29, 78, 216, 0.04) 1px, transparent 1px);
-  background-size: 28px 28px;
+.skip-link {
+  position: absolute;
+  inset-inline-start: var(--space-md);
+  top: calc(-1 * var(--space-3xl));
+  z-index: var(--z-toast);
+  border-radius: var(--radius-input);
+  background-color: var(--color-board);
+  color: var(--color-board-type);
+  padding: var(--space-xs) var(--space-md);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.skip-link:focus-visible {
+  top: var(--space-md);
+}
+
+.app-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  border-radius: var(--radius-card);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-micro) var(--ease-out),
+    border-color var(--dur-micro) var(--ease-out),
+    color var(--dur-micro) var(--ease-out),
+    transform var(--dur-micro) var(--ease-out);
+}
+
+.app-btn:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.app-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.app-btn:disabled,
+.app-btn[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.app-btn-primary {
+  background-color: var(--color-board);
+  color: var(--color-board-type);
+  border: var(--rule-hair) solid var(--color-board);
+  box-shadow: var(--shadow-card);
+}
+
+.app-btn-primary:hover:not(:disabled) {
+  background-color: var(--color-ink-2);
+  border-color: var(--color-ink-2);
+}
+
+.app-btn-secondary {
+  background-color: var(--color-paper-2);
+  color: var(--color-ink);
+  border: var(--rule-hair) solid var(--color-rule-2);
+}
+
+.app-btn-secondary:hover:not(:disabled) {
+  background-color: var(--color-paper-3);
+}
+
+.app-btn-outline {
+  background-color: transparent;
+  color: var(--color-ink);
+  border: var(--rule-hair) solid var(--color-rule-2);
+  box-shadow: var(--shadow-card);
+}
+
+.app-btn-outline:hover:not(:disabled) {
+  background-color: var(--color-paper-2);
+  border-color: var(--color-muted);
+}
+
+.app-btn-ghost {
+  background-color: transparent;
+  color: var(--color-muted);
+  border: var(--rule-hair) solid transparent;
+}
+
+.app-btn-ghost:hover:not(:disabled) {
+  background-color: var(--color-paper-2);
+  color: var(--color-ink);
+}
+
+.app-btn-destructive {
+  background-color: transparent;
+  color: var(--color-signal-crimson);
+  border: var(--rule-hair) solid var(--color-signal-crimson-border);
+}
+
+.app-btn-destructive:hover:not(:disabled) {
+  background-color: var(--color-error);
+  color: var(--color-board-type);
+  border-color: var(--color-error);
+}
+
+.app-field {
+  border: var(--rule-hair) solid var(--color-muted);
+  border-radius: var(--radius-input);
+  background-color: var(--color-cotton);
+  color: var(--color-ink);
+  outline: 2px solid transparent;
+  outline-offset: -3px;
+  transition:
+    background-color var(--dur-micro) var(--ease-out),
+    border-color var(--dur-micro) var(--ease-out);
+}
+
+.app-field::placeholder {
+  color: var(--color-muted);
+}
+
+.app-field:hover:not(:disabled) {
+  background-color: var(--color-paper);
+}
+
+.app-field:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -3px;
+  border-color: var(--color-ink);
+}
+
+.app-field[aria-invalid="true"] {
+  border-color: var(--color-error);
+}
+
+.app-field:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background-color: var(--color-paper-2);
+}
+
+.app-groove {
+  background-color: var(--color-paper-2);
+  border: var(--rule-hair) solid var(--color-rule);
+  box-shadow: var(--press-groove);
+}
+
+.app-dialog {
+  margin: auto;
+  padding: 0;
+  border: var(--rule-hair) solid var(--color-rule-2);
+  border-radius: var(--radius-card);
+  background-color: var(--color-cotton);
+  color: var(--color-ink);
+  box-shadow: var(--cast-stock-lift);
+  max-height: min(85dvh, 44rem);
+  width: min(100% - var(--space-lg), 34rem);
+}
+
+.app-dialog::backdrop {
+  background-color: var(--scrim-modal);
+}
+
+.app-dialog[data-size="wide"] {
+  width: min(100% - var(--space-lg), 44rem);
+}
+
+.app-desk-band {
+  background-color: var(--color-desk);
+  background-image: radial-gradient(85% 110% at 0% 25%, var(--color-cotton), transparent 64%);
 }

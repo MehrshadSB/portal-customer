@@ -1,0 +1,132 @@
+@theme static {
+  --color-paper: oklch(97% 0.006 55);
+  --color-paper-2: oklch(94.5% 0.007 55);
+  --color-paper-3: oklch(91.5% 0.009 55);
+  --color-cotton: oklch(98.8% 0.0045 80);
+  --color-desk: oklch(94.3% 0.008 64);
+  --color-ink: oklch(21% 0.012 38);
+  --color-ink-2: oklch(29% 0.013 40);
+  --color-muted: oklch(46% 0.013 45);
+  --color-rule: oklch(87% 0.009 55);
+  --color-rule-2: oklch(80% 0.011 55);
+  --color-board: oklch(22% 0.011 40);
+  --color-board-type: oklch(96.5% 0.006 70);
+  --color-accent: oklch(74% 0.125 30);
+  --color-accent-ink: oklch(21% 0.012 38);
+  --color-accent-2: oklch(52% 0.165 29);
+  --color-focus: oklch(52% 0.17 30);
+  --color-paid: oklch(53% 0.15 33);
+  --color-error: oklch(50% 0.18 26);
+  --color-success: oklch(42% 0.11 156);
+  --color-signal-slate: oklch(42% 0.014 55);
+  --color-signal-slate-bg: oklch(94.5% 0.008 55);
+  --color-signal-slate-border: oklch(83% 0.012 55);
+  --color-signal-cobalt: oklch(44% 0.145 252);
+  --color-signal-cobalt-bg: oklch(95.5% 0.018 250);
+  --color-signal-cobalt-border: oklch(84% 0.045 250);
+  --color-signal-amber: oklch(44% 0.125 68);
+  --color-signal-amber-bg: oklch(95.5% 0.032 82);
+  --color-signal-amber-border: oklch(84% 0.065 78);
+  --color-signal-emerald: oklch(41% 0.11 156);
+  --color-signal-emerald-bg: oklch(95.5% 0.025 156);
+  --color-signal-emerald-border: oklch(83% 0.055 156);
+  --color-signal-crimson: oklch(46% 0.175 26);
+  --color-signal-crimson-bg: oklch(95.5% 0.024 24);
+  --color-signal-crimson-border: oklch(84% 0.055 24);
+  --font-display: "Vazirmatn Variable", "Plus Jakarta Sans Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Vazirmatn Variable", "Plus Jakarta Sans Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Vazirmatn Variable", "Plus Jakarta Sans Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-outlier: "JetBrains Mono Variable", ui-monospace, monospace;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.2rem;
+  --text-xl: 1.44rem;
+  --text-2xl: 1.728rem;
+  --text-3xl: 2.074rem;
+  --text-display-s: 1.44rem;
+  --text-display: 1.728rem;
+  --text-section: 1.2rem;
+  --text-title: 1rem;
+  --text-lead: 1rem;
+  --tracking-display: -0.02em;
+  --radius-card: 8px;
+  --radius-input: 6px;
+  --radius-pill: 999px;
+  --radius-stock: 8px;
+  --shadow-card: 0 1px 2px oklch(20% 0.01 35 / 0.05);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+:root {
+  color-scheme: light;
+  --space-3xs: 2px;
+  --space-2xs: 4px;
+  --space-xs: 8px;
+  --space-sm: 12px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 40px;
+  --space-2xl: 64px;
+  --space-3xl: 96px;
+  --space-4xl: 144px;
+  --dur-micro: 120ms;
+  --dur-short: 220ms;
+  --dur-long: 420ms;
+  --container: 1440px;
+  --gutter: 32px;
+  --gap-columns: 24px;
+  --section-gap-s: 48px;
+  --section-gap: 64px;
+  --section-gap-l: 96px;
+  --z-base: 1;
+  --z-raised: 10;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-sticky-nav: 300;
+  --z-modal: 400;
+  --z-toast: 500;
+  --z-tooltip: 600;
+  --rule-hair: 1px;
+  --display-weight: 600;
+  --shade: 32% 0.03 50;
+  --lit: 99% 0.004 80;
+  --deep: 7% 0.01 40;
+  --edge-stock: inset 0 1px 0 oklch(var(--lit) / 0.9), inset 0 -1px 0 oklch(var(--shade) / 0.07), 0 0 0 0.5px oklch(var(--shade) / 0.22), 0 1px 0 oklch(var(--shade) / 0.12);
+  --cast-stock: 6px 5px 10px -6px oklch(var(--shade) / 0.24);
+  --cast-stock-lift: 10px 8px 16px -8px oklch(var(--shade) / 0.26);
+  --press-groove: inset 1px 1.5px 2px oklch(var(--shade) / 0.14), inset -1px -1px 0 oklch(var(--lit) / 0.9), 0 0 0 0.5px oklch(var(--shade) / 0.18);
+  --scrim-modal: oklch(21% 0.012 38 / 0.42);
+  --bg-canvas: var(--color-paper);
+  --bg-surface: var(--color-cotton);
+  --bg-subtle: var(--color-paper-2);
+  --border-hairline: var(--color-rule);
+  --ink-primary: var(--color-ink);
+  --ink-muted: var(--color-muted);
+  --accent-cobalt: var(--color-board);
+  --accent-cobalt-hover: var(--color-ink-2);
+  --signal-amber: var(--color-signal-amber);
+  --signal-amber-surface: var(--color-signal-amber-bg);
+  --signal-emerald: var(--color-signal-emerald);
+  --signal-emerald-surface: var(--color-signal-emerald-bg);
+  --signal-crimson: var(--color-signal-crimson);
+  --signal-crimson-surface: var(--color-signal-crimson-bg);
+  --signal-slate: var(--color-signal-slate);
+  --signal-slate-surface: var(--color-signal-slate-bg);
+}
+
+@media (max-width: 60rem) {
+  :root {
+    --gutter: 20px;
+  }
+}
+
+@media (max-width: 40rem) {
+  :root {
+    --gutter: 16px;
+    --gap-columns: 16px;
+  }
+}

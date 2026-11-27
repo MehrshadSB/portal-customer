@@ -1,10 +1,10 @@
-import 'reflect-metadata';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
+import 'reflect-metadata';
 import { AppModule } from './app.module';
 import type { AppEnv } from './infrastructure/config/env.schema';
 import { RedisIoAdapter } from './modules/realtime/redis-io.adapter';
@@ -46,7 +46,7 @@ async function bootstrap(): Promise<void> {
     SwaggerModule.setup('api/docs', app, document);
   }
 
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
   logger.log(`API server listening on http://localhost:${port}/api/v1`, 'Bootstrap');
 }
 

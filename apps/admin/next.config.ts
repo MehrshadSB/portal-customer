@@ -29,7 +29,11 @@ const apiInternalUrl =
 const publicApiUrl =
   process.env.NEXT_PUBLIC_API_URL || rootEnv.NEXT_PUBLIC_API_URL || fallbackApiOrigin;
 
+const monorepoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+
 const nextConfig: NextConfig = {
+  output: process.env.NEXT_OUTPUT_STANDALONE === 'true' ? 'standalone' : undefined,
+  outputFileTracingRoot: monorepoRoot,
   transpilePackages: [
     '@portal/ui',
     '@portal/i18n',

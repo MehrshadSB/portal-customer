@@ -1,0 +1,38 @@
+# Dependencies
+node_modules
+**/node_modules
+.pnpm-store
+
+# Git & VCS
+.git
+.gitignore
+
+# Build outputs & caches
+.next
+**/.next
+dist
+**/dist
+build
+**/build
+.turbo
+**/.turbo
+*.tsbuildinfo
+**/*.tsbuildinfo
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Logs & testing
+logs
+*.log
+coverage
+playwright-report
+test-results
+
+# IDE / OS
+.DS_Store
+Thumbs.db
+.idea
+.vscode

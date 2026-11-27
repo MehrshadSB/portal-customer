@@ -8,6 +8,7 @@ import { cn } from '../lib/cn';
 import { AlertBanner } from './alert-banner';
 import { Button } from './button';
 import { Textarea } from './select';
+import { SkeletonLine } from './skeleton';
 import { StatusBadge } from './status-badge';
 
 export interface ConversationThreadProps {
@@ -16,6 +17,7 @@ export interface ConversationThreadProps {
   canSendPublic: boolean;
   canSendInternal?: boolean;
   isLoading?: boolean;
+  embedded?: boolean;
   onSendMessage: (payload: {
     body: string;
     visibility: 'public' | 'internal';
@@ -34,6 +36,7 @@ export function ConversationThread({
   canSendPublic,
   canSendInternal = false,
   isLoading = false,
+  embedded = false,
   onSendMessage,
   onUploadAttachment,
   onDownloadAttachment,
@@ -92,22 +95,39 @@ export function ConversationThread({
   };
 
   return (
-    <div className="space-y-4">
-      <div className="max-h-[480px] space-y-3 overflow-y-auto rounded-md border border-[var(--border-hairline)] bg-[var(--bg-canvas)] p-3">
+    <div className={cn(embedded ? 'divide-y divide-[var(--color-rule)]' : 'space-y-4')}>
+      <div
+        className={cn(
+          'max-h-[480px] space-y-3 overflow-y-auto p-4',
+          embedded
+            ? 'bg-[var(--color-paper)]/50'
+            : 'rounded-[var(--radius-card)] border border-[var(--color-rule)] bg-[var(--color-paper)]',
+        )}
+      >
         {isLoading ? (
-          <p className="py-6 text-center text-xs text-[var(--ink-muted)]">{t.common.loading}</p>
+          <div className="space-y-3 py-2" aria-busy="true">
+            <SkeletonLine className="w-2/3" />
+            <SkeletonLine className="w-1/2" />
+            <SkeletonLine className="w-3/4" />
+          </div>
         ) : messages.length === 0 ? (
-          <p className="py-6 text-center text-xs text-[var(--ink-muted)]">
+          <p className="py-6 text-center text-xs text-[var(--color-muted)]">
             {t.conversations.emptyMessages}
           </p>
         ) : (
           messages.map((msg) => {
             if (msg.messageType === 'system_event') {
               return (
-                <div key={msg.id} className="flex justify-center py-1">
-                  <span className="rounded-full border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-3 py-1 text-[11px] text-[var(--ink-muted)]">
-                    {msg.body} · {formatDateTime(msg.createdAt)}
-                  </span>
+                <div
+                  key={msg.id}
+                  className="flex items-center gap-3 py-1.5 text-xs text-[var(--color-muted)]"
+                >
+                  <span className="h-px flex-1 bg-[var(--color-rule)]" aria-hidden="true" />
+                  <span className="font-medium text-[var(--color-ink-2)]">{msg.body}</span>
+                  <time className="font-mono-tabular text-xs text-[var(--color-muted)]">
+                    {formatDateTime(msg.createdAt)}
+                  </time>
+                  <span className="h-px flex-1 bg-[var(--color-rule)]" aria-hidden="true" />
                 </div>
               );
             }
@@ -116,20 +136,20 @@ export function ConversationThread({
             const isInternal = msg.visibility === 'internal';
 
             return (
-              <div
+              <article
                 key={msg.id}
                 className={cn(
-                  'rounded-md border p-3 text-xs',
+                  'rounded-[var(--radius-input)] border p-3.5 text-sm',
                   isInternal
-                    ? 'border-amber-300 bg-[var(--signal-amber-surface)]/70 dark:border-amber-800'
+                    ? 'border-[var(--color-signal-amber-border)] bg-[var(--color-signal-amber-bg)]'
                     : isOwn
-                      ? 'border-[var(--accent-cobalt)]/30 bg-[var(--accent-cobalt)]/5'
-                      : 'border-[var(--border-hairline)] bg-[var(--bg-surface)]',
+                      ? 'border-[var(--color-rule-2)] bg-[var(--color-cotton)]'
+                      : 'border-[var(--color-rule)] bg-[var(--color-cotton)]',
                 )}
               >
-                <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-[var(--ink-primary)]">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-semibold text-[var(--color-ink)]">
                       {msg.senderName}
                     </span>
                     <StatusBadge
@@ -137,37 +157,37 @@ export function ConversationThread({
                       tone={msg.senderType === 'employee' ? 'amber' : 'cobalt'}
                     />
                     {isInternal ? (
-                      <span className="inline-flex items-center gap-1 rounded bg-amber-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                        <Lock className="h-2.5 w-2.5" />
+                      <span className="inline-flex items-center gap-1 rounded-[4px] bg-[var(--color-signal-amber)] px-1.5 py-0.5 text-xs font-medium text-[var(--color-board-type)]">
+                        <Lock className="h-3 w-3" aria-hidden="true" />
                         {t.conversations.internalBadge}
                       </span>
                     ) : null}
                   </div>
-                  <span className="font-mono-tabular text-[11px] text-[var(--ink-muted)]">
+                  <time className="font-mono-tabular text-xs text-[var(--color-muted)]">
                     {formatDateTime(msg.createdAt)}
-                  </span>
+                  </time>
                 </div>
 
-                <p className="whitespace-pre-wrap leading-relaxed text-[var(--ink-primary)]">
+                <p className="max-w-prose whitespace-pre-wrap text-sm leading-relaxed text-[var(--color-ink)]">
                   {msg.body}
                 </p>
 
                 {msg.attachments.length > 0 ? (
-                  <div className="mt-2.5 flex flex-wrap gap-2">
+                  <div className="mt-3 flex flex-wrap gap-2">
                     {msg.attachments.map((att) => (
                       <button
                         key={att.id}
                         type="button"
                         onClick={() => onDownloadAttachment(att.id)}
-                        className="inline-flex items-center gap-1.5 rounded border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-2 py-1 text-[11px] font-medium text-[var(--accent-cobalt)] hover:bg-[var(--bg-subtle)]"
+                        className="inline-flex cursor-pointer items-center gap-1.5 rounded-[var(--radius-input)] border border-[var(--color-rule-2)] bg-[var(--color-paper)] px-2.5 py-1 text-xs font-medium text-[var(--color-ink)] transition-colors duration-[var(--dur-micro)] hover:bg-[var(--color-paper-2)] active:translate-y-px"
                       >
-                        <Download className="h-3 w-3" />
+                        <Download className="h-3.5 w-3.5 text-[var(--color-muted)]" aria-hidden="true" />
                         <span dir="ltr">{att.originalFilename}</span>
                       </button>
                     ))}
                   </div>
                 ) : null}
-              </div>
+              </article>
             );
           })
         )}
@@ -177,16 +197,22 @@ export function ConversationThread({
         <form
           onSubmit={handleSend}
           className={cn(
-            'space-y-3 rounded-md border p-3',
+            'space-y-3 p-4',
+            embedded ? '' : 'rounded-[var(--radius-card)] border',
             visibility === 'internal'
-              ? 'border-amber-300 bg-[var(--signal-amber-surface)]/60 dark:border-amber-800'
-              : 'border-[var(--border-hairline)] bg-[var(--bg-surface)]',
+              ? embedded
+                ? 'bg-[var(--color-signal-amber-bg)]/55'
+                : 'border-[var(--color-signal-amber-border)] bg-[var(--color-signal-amber-bg)]/55'
+              : embedded
+                ? 'bg-[var(--color-cotton)]'
+                : 'border-[var(--color-rule)] bg-[var(--color-cotton)]',
           )}
         >
           {canSendInternal ? (
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="app-groove inline-flex flex-wrap items-center gap-1 rounded-[var(--radius-input)] p-1">
               <button
                 type="button"
+                aria-pressed={visibility === 'public'}
                 onClick={() => {
                   setVisibility('public');
                   setPendingAttachments((prev) =>
@@ -194,25 +220,26 @@ export function ConversationThread({
                   );
                 }}
                 className={cn(
-                  'rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
+                  'cursor-pointer rounded-[4px] px-3 py-1 text-xs font-medium transition-colors duration-[var(--dur-micro)]',
                   visibility === 'public'
-                    ? 'border-[var(--accent-cobalt)] bg-[var(--accent-cobalt)] text-white'
-                    : 'border-[var(--border-hairline)] bg-[var(--bg-surface)] text-[var(--ink-muted)]',
+                    ? 'bg-[var(--color-cotton)] text-[var(--color-ink)] shadow-[var(--shadow-card)]'
+                    : 'text-[var(--color-muted)] hover:text-[var(--color-ink)]',
                 )}
               >
                 {t.conversations.publicMode}
               </button>
               <button
                 type="button"
+                aria-pressed={visibility === 'internal'}
                 onClick={() => setVisibility('internal')}
                 className={cn(
-                  'inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
+                  'inline-flex cursor-pointer items-center gap-1.5 rounded-[4px] px-3 py-1 text-xs font-medium transition-colors duration-[var(--dur-micro)]',
                   visibility === 'internal'
-                    ? 'border-amber-600 bg-amber-600 text-white'
-                    : 'border-[var(--border-hairline)] bg-[var(--bg-surface)] text-[var(--ink-muted)]',
+                    ? 'bg-[var(--color-signal-amber)] text-[var(--color-board-type)] shadow-[var(--shadow-card)]'
+                    : 'text-[var(--color-muted)] hover:text-[var(--color-ink)]',
                 )}
               >
-                <Lock className="h-3 w-3" />
+                <Lock className="h-3 w-3" aria-hidden="true" />
                 {t.conversations.internalMode}
               </button>
             </div>
@@ -226,6 +253,7 @@ export function ConversationThread({
             rows={3}
             value={body}
             onChange={(e) => setBody(e.target.value)}
+            aria-label={t.conversations.sendReply}
             placeholder={
               visibility === 'internal'
                 ? t.conversations.messagePlaceholderInternal
@@ -238,24 +266,27 @@ export function ConversationThread({
               {pendingAttachments.map((att) => (
                 <span
                   key={att.id}
-                  className="inline-flex items-center gap-1.5 rounded border border-[var(--border-hairline)] bg-[var(--bg-subtle)] px-2 py-1 text-[11px]"
+                  className="inline-flex items-center gap-1.5 rounded-[var(--radius-input)] border border-[var(--color-rule)] bg-[var(--color-paper-2)] px-2.5 py-1 text-xs"
                 >
                   <span dir="ltr">{att.originalFilename}</span>
                   <button
                     type="button"
+                    aria-label={t.common.delete}
                     onClick={() =>
                       setPendingAttachments((prev) => prev.filter((item) => item.id !== att.id))
                     }
-                    className="text-[var(--ink-muted)] hover:text-[var(--signal-crimson)]"
+                    className="cursor-pointer text-[var(--color-muted)] hover:text-[var(--color-signal-crimson)]"
                   >
-                    <X className="h-3 w-3" />
+                    <X className="h-3.5 w-3.5" aria-hidden="true" />
                   </button>
                 </span>
               ))}
             </div>
           ) : null}
 
-          {error ? <AlertBanner tone="crimson">{error}</AlertBanner> : null}
+          <div className="min-h-[1lh]">
+            {error ? <AlertBanner tone="crimson">{error}</AlertBanner> : null}
+          </div>
 
           <div className="flex items-center justify-between gap-2">
             <div>
@@ -274,7 +305,7 @@ export function ConversationThread({
                     disabled={uploading}
                     onClick={() => fileInputRef.current?.click()}
                   >
-                    <Paperclip className="h-3.5 w-3.5" />
+                    <Paperclip className="h-3.5 w-3.5" aria-hidden="true" />
                     {uploading ? t.documents.uploading : t.conversations.attachFiles}
                   </Button>
                 </>
@@ -285,7 +316,7 @@ export function ConversationThread({
               size="sm"
               disabled={submitting || uploading || !body.trim() || !canCompose}
             >
-              <Send className="h-3.5 w-3.5" />
+              <Send className="h-3.5 w-3.5" aria-hidden="true" />
               {visibility === 'internal'
                 ? t.conversations.saveInternalNote
                 : t.conversations.sendReply}

@@ -16,6 +16,7 @@ import {
   Label,
   ModalDialog,
   PageHeader,
+  SkeletonTable,
   StatusBadge,
 } from '@portal/ui';
 import { createContactSchema, type CreateContactInput } from '@portal/validators';
@@ -87,7 +88,7 @@ export default function PortalTeamPage() {
         actions={
           canManageContacts ? (
             <Button variant="outline" size="sm" onClick={() => setContactOpen(true)}>
-              <Plus className="h-3.5 w-3.5" />
+              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
               {t.portal.team.addContact}
             </Button>
           ) : null
@@ -95,18 +96,44 @@ export default function PortalTeamPage() {
       />
 
       <AlertBanner tone="cobalt">{t.portal.team.adminProvisionedNotice}</AlertBanner>
-      {errorMsg ? <AlertBanner tone="crimson">{errorMsg}</AlertBanner> : null}
+      {errorMsg || membersQuery.isError || contactsQuery.isError || deleteContactMutation.isError ? (
+        <AlertBanner tone="crimson">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span>
+              {errorMsg ??
+                extractErr(
+                  membersQuery.error ?? contactsQuery.error ?? deleteContactMutation.error,
+                  t.common.noData,
+                )}
+            </span>
+            {membersQuery.isError || contactsQuery.isError ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  void membersQuery.refetch();
+                  void contactsQuery.refetch();
+                }}
+              >
+                {t.common.retry}
+              </Button>
+            ) : null}
+          </div>
+        </AlertBanner>
+      ) : null}
 
       <Card>
         <CardHeader>
           <CardTitle>{t.portal.team.portalUsersTitle}</CardTitle>
           <CardDescription>{t.portal.team.portalUsersDesc}</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           {membersQuery.isLoading ? (
-            <p className="text-xs text-[var(--ink-muted)]">{t.portal.team.loadingMembers}</p>
-          ) : (membersQuery.data?.length ?? 0) === 0 ? (
+            <SkeletonTable rows={4} columns={5} />
+          ) : membersQuery.isError ? null : (membersQuery.data?.length ?? 0) === 0 ? (
             <EmptyState
+              embedded
+              headingLevel="h3"
               icon={<Users className="h-4 w-4" />}
               title={t.portal.team.emptyMembersTitle}
               description={t.portal.team.emptyMembersDesc}
@@ -115,41 +142,50 @@ export default function PortalTeamPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-start text-xs">
                 <thead>
-                  <tr className="border-b border-[var(--border-hairline)] text-[var(--ink-muted)]">
-                    <th className="py-2 pe-4 font-medium">{t.common.fullName}</th>
-                    <th className="py-2 pe-4 font-medium">{t.common.phone}</th>
-                    <th className="py-2 pe-4 font-medium">{t.common.email}</th>
-                    <th className="py-2 pe-4 font-medium">{t.common.role}</th>
-                    <th className="py-2 font-medium">{t.common.status}</th>
+                  <tr className="border-b border-[var(--color-rule)] bg-[var(--color-paper-2)] text-[var(--color-muted)]">
+                    <th className="px-4 py-2.5 font-medium">{t.common.fullName}</th>
+                    <th className="px-4 py-2.5 font-medium">{t.common.phone}</th>
+                    <th className="px-4 py-2.5 font-medium">{t.common.email}</th>
+                    <th className="px-4 py-2.5 font-medium">{t.common.role}</th>
+                    <th className="px-4 py-2.5 font-medium">{t.common.status}</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[var(--border-hairline)]">
+                <tbody className="divide-y divide-[var(--color-rule)]">
                   {membersQuery.data?.map((member) => (
-                    <tr key={member.id} className="hover:bg-[var(--bg-subtle)]/50">
-                      <td className="py-2.5 pe-4 font-medium">
+                    <tr
+                      key={member.id}
+                      className="transition-colors duration-[var(--dur-micro)] hover:bg-[var(--color-paper-2)]/60"
+                    >
+                      <td className="px-4 py-2.5 font-medium text-[var(--color-ink)]">
                         {member.fullName}
                         {member.jobTitle ? (
-                          <span className="block text-[11px] font-normal text-[var(--ink-muted)]">
+                          <span className="block text-xs font-normal text-[var(--color-muted)]">
                             {member.jobTitle}
                           </span>
                         ) : null}
                       </td>
-                      <td
-                        dir="ltr"
-                        className="font-mono-tabular py-2.5 pe-4 text-start text-[var(--ink-muted)]"
-                      >
-                        {member.phone ?? '—'}
+                      <td className="font-mono-tabular px-4 py-2.5 text-start text-[var(--color-muted)]">
+                        {member.phone ? (
+                          <span dir="ltr" className="inline-block">
+                            {member.phone}
+                          </span>
+                        ) : (
+                          '-'
+                        )}
                       </td>
-                      <td
-                        dir="ltr"
-                        className="font-mono-tabular py-2.5 pe-4 text-start text-[var(--ink-muted)]"
-                      >
-                        {member.email ?? '—'}
+                      <td className="font-mono-tabular px-4 py-2.5 text-start text-[var(--color-muted)]">
+                        {member.email ? (
+                          <span dir="ltr" className="inline-block">
+                            {member.email}
+                          </span>
+                        ) : (
+                          '-'
+                        )}
                       </td>
-                      <td className="py-2.5 pe-4">
+                      <td className="px-4 py-2.5">
                         <StatusBadge label={translateRole(member.roleSlug)} tone="cobalt" />
                       </td>
-                      <td className="py-2.5">
+                      <td className="px-4 py-2.5">
                         <StatusBadge
                           label={translateStatus(member.userStatus)}
                           tone={member.userStatus === 'active' ? 'emerald' : 'crimson'}
@@ -169,28 +205,48 @@ export default function PortalTeamPage() {
           <CardTitle>{t.portal.team.contactsTitle}</CardTitle>
           <CardDescription>{t.portal.team.contactsDesc}</CardDescription>
         </CardHeader>
-        <CardContent>
-          {(contactsQuery.data?.length ?? 0) === 0 ? (
+        <CardContent className="p-0">
+          {contactsQuery.isLoading ? (
+            <SkeletonTable rows={3} columns={2} />
+          ) : contactsQuery.isError ? null : (contactsQuery.data?.length ?? 0) === 0 ? (
             <EmptyState
+              embedded
+              headingLevel="h3"
               title={t.portal.team.emptyContactsTitle}
               description={t.portal.team.emptyContactsDesc}
+              action={
+                canManageContacts ? (
+                  <Button variant="outline" size="sm" onClick={() => setContactOpen(true)}>
+                    <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                    {t.portal.team.addContact}
+                  </Button>
+                ) : undefined
+              }
             />
           ) : (
-            <div className="divide-y divide-[var(--border-hairline)]">
+            <div className="divide-y divide-[var(--color-rule)]">
               {contactsQuery.data?.map((c) => (
-                <div key={c.id} className="flex items-center justify-between py-3 text-xs">
-                  <div>
-                    <p className="font-medium text-[var(--ink-primary)]">
-                      {c.fullName}{' '}
+                <div key={c.id} className="flex items-center justify-between gap-3 px-5 py-3 text-xs">
+                  <div className="min-w-0 space-y-0.5">
+                    <p className="font-medium text-[var(--color-ink)]">
+                      {c.fullName}
                       {c.jobTitle ? (
-                        <span className="font-normal text-[var(--ink-muted)]">· {c.jobTitle}</span>
+                        <span className="font-normal text-[var(--color-muted)]">: {c.jobTitle}</span>
                       ) : null}
                     </p>
-                    <p
-                      dir="ltr"
-                      className="font-mono-tabular text-start text-[11px] text-[var(--ink-muted)]"
-                    >
-                      {[c.email, c.phone, c.departmentLabel].filter(Boolean).join(' · ') || '—'}
+                    <p className="truncate text-start text-xs text-[var(--color-muted)]">
+                      {c.email || c.phone ? (
+                        <span dir="ltr" className="font-mono-tabular inline-block">
+                          {[c.email, c.phone].filter(Boolean).join(', ')}
+                        </span>
+                      ) : null}
+                      {c.departmentLabel ? (
+                        <span>
+                          {c.email || c.phone ? ', ' : ''}
+                          {c.departmentLabel}
+                        </span>
+                      ) : null}
+                      {!c.email && !c.phone && !c.departmentLabel ? '-' : null}
                     </p>
                   </div>
                   {canManageContacts ? (
@@ -200,7 +256,10 @@ export default function PortalTeamPage() {
                       aria-label={`${t.common.delete} ${c.fullName}`}
                       onClick={() => deleteContactMutation.mutate(c.id)}
                     >
-                      <Trash2 className="h-3.5 w-3.5 text-[var(--signal-crimson)]" />
+                      <Trash2
+                        className="h-3.5 w-3.5 text-[var(--color-signal-crimson)]"
+                        aria-hidden="true"
+                      />
                     </Button>
                   ) : null}
                 </div>
@@ -222,16 +281,43 @@ export default function PortalTeamPage() {
         >
           <div className="space-y-1.5">
             <Label htmlFor="contact-name">{t.common.fullName}</Label>
-            <Input id="contact-name" {...contactForm.register('fullName')} />
+            <Input
+              id="contact-name"
+              aria-invalid={Boolean(contactForm.formState.errors.fullName)}
+              aria-describedby="contact-name-err"
+              {...contactForm.register('fullName')}
+            />
+            <p id="contact-name-err" className="min-h-[1lh] text-xs text-[var(--color-signal-crimson)]">
+              {contactForm.formState.errors.fullName?.message ?? ''}
+            </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="contact-email">{t.common.email}</Label>
-              <Input id="contact-email" type="email" dir="ltr" {...contactForm.register('email')} />
+              <Input
+                id="contact-email"
+                type="email"
+                dir="ltr"
+                aria-invalid={Boolean(contactForm.formState.errors.email)}
+                aria-describedby="contact-email-err"
+                {...contactForm.register('email')}
+              />
+              <p id="contact-email-err" className="min-h-[1lh] text-xs text-[var(--color-signal-crimson)]">
+                {contactForm.formState.errors.email?.message ?? ''}
+              </p>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="contact-phone">{t.common.phone}</Label>
-              <Input id="contact-phone" dir="ltr" {...contactForm.register('phone')} />
+              <Input
+                id="contact-phone"
+                dir="ltr"
+                aria-invalid={Boolean(contactForm.formState.errors.phone)}
+                aria-describedby="contact-phone-err"
+                {...contactForm.register('phone')}
+              />
+              <p id="contact-phone-err" className="min-h-[1lh] text-xs text-[var(--color-signal-crimson)]">
+                {contactForm.formState.errors.phone?.message ?? ''}
+              </p>
             </div>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">

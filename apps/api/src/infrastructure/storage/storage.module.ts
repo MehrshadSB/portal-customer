@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import type { AppEnv } from '../config/env.schema';
 
 export const S3_CLIENT = Symbol('S3_CLIENT');
+export const S3_PRESIGN_CLIENT = Symbol('S3_PRESIGN_CLIENT');
 
 @Injectable()
 export class StorageService implements OnModuleInit {
@@ -61,8 +62,24 @@ export class StorageService implements OnModuleInit {
         });
       },
     },
+    {
+      provide: S3_PRESIGN_CLIENT,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<AppEnv, true>) => {
+        const publicEndpoint = config.get('S3_PUBLIC_ENDPOINT', { infer: true });
+        return new S3Client({
+          endpoint: publicEndpoint || config.get('S3_ENDPOINT', { infer: true }),
+          region: config.get('S3_REGION', { infer: true }),
+          forcePathStyle: config.get('S3_FORCE_PATH_STYLE', { infer: true }),
+          credentials: {
+            accessKeyId: config.get('S3_ACCESS_KEY', { infer: true }),
+            secretAccessKey: config.get('S3_SECRET_KEY', { infer: true }),
+          },
+        });
+      },
+    },
     StorageService,
   ],
-  exports: [S3_CLIENT, StorageService],
+  exports: [S3_CLIENT, S3_PRESIGN_CLIENT, StorageService],
 })
 export class StorageModule {}

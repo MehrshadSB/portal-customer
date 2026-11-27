@@ -8,8 +8,8 @@ import { QueryProvider } from '@/lib/query-provider';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'پورتال مشتریان | آذرپارت صنعت',
-  description: 'پیگیری سفارش‌های ساخت سفارشی، مراحل پیشرفت تولید، اسناد فنی و تیکت‌های پشتیبانی',
+  title: 'پورتال مشتریان | تولید رنگ و پوشش‌های خودرو',
+  description: 'پیگیری سفارش‌های ساخت رنگ و رزین خودرو، مراحل تولید، اسناد فنی و تیکت‌های پشتیبانی',
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
