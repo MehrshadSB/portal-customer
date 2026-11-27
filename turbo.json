@@ -13,6 +13,31 @@
       "cache": false,
       "persistent": true
     },
+    "@portal/types#dev": {
+      "dependsOn": ["build", "^build"],
+      "cache": false,
+      "persistent": true
+    },
+    "@portal/validators#dev": {
+      "dependsOn": ["build", "^build"],
+      "cache": false,
+      "persistent": true
+    },
+    "@portal/api-client#dev": {
+      "dependsOn": ["build", "^build"],
+      "cache": false,
+      "persistent": true
+    },
+    "@portal/i18n#dev": {
+      "dependsOn": ["build", "^build"],
+      "cache": false,
+      "persistent": true
+    },
+    "@portal/ui#dev": {
+      "dependsOn": ["build", "^build"],
+      "cache": false,
+      "persistent": true
+    },
     "lint": {
       "dependsOn": ["^build"]
     },

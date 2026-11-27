@@ -21,7 +21,7 @@ import {
   Select,
   StatusBadge,
 } from '@portal/ui';
-import { inviteEmployeeSchema, type InviteEmployeeInput } from '@portal/validators';
+import { createEmployeeSchema, type CreateEmployeeInput } from '@portal/validators';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Search, UserPlus, Users } from 'lucide-react';
 import * as React from 'react';
@@ -34,7 +34,7 @@ export default function AdminEmployeesPage() {
   const { t, translateError, translateRole, translateStatus } = useI18n();
   const queryClient = useQueryClient();
   const [search, setSearch] = React.useState('');
-  const [inviteOpen, setInviteOpen] = React.useState(false);
+  const [createOpen, setCreateOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<EmployeeDto | null>(null);
   const [editDeptId, setEditDeptId] = React.useState('');
   const [editRoleSlug, setEditRoleSlug] = React.useState('');
@@ -58,28 +58,29 @@ export default function AdminEmployeesPage() {
   });
 
   const form = useForm({
-    resolver: zodResolver(inviteEmployeeSchema),
+    resolver: zodResolver(createEmployeeSchema),
     defaultValues: { roleSlugs: ['support_agent'] },
   });
 
   const extractErr = (err: unknown, fallback: string) => {
-    const code = typeof err === 'object' && err !== null && 'code' in err ? String(err.code) : undefined;
+    const code =
+      typeof err === 'object' && err !== null && 'code' in err ? String(err.code) : undefined;
     return translateError(code, err instanceof Error ? err.message : fallback);
   };
 
-  const inviteMutation = useMutation({
-    mutationFn: (body: InviteEmployeeInput) =>
-      adminApi.post<EmployeeDto>('/employees/invite', {
+  const createMutation = useMutation({
+    mutationFn: (body: CreateEmployeeInput) =>
+      adminApi.post<EmployeeDto>('/employees', {
         ...body,
         departmentId: body.departmentId || null,
       }),
     onSuccess: async () => {
       setErrorMsg(null);
-      setInviteOpen(false);
+      setCreateOpen(false);
       form.reset({ roleSlugs: ['support_agent'] });
       await queryClient.invalidateQueries({ queryKey: ['admin', 'employees'] });
     },
-    onError: (err) => setErrorMsg(extractErr(err, 'Unable to invite employee')),
+    onError: (err) => setErrorMsg(extractErr(err, 'Unable to create employee')),
   });
 
   const updateMutation = useMutation({
@@ -121,9 +122,9 @@ export default function AdminEmployeesPage() {
         description={t.admin.employees.description}
         actions={
           canManage ? (
-            <Button size="sm" onClick={() => setInviteOpen(true)}>
+            <Button size="sm" onClick={() => setCreateOpen(true)}>
               <UserPlus className="h-3.5 w-3.5" />
-              {t.admin.employees.inviteEmployee}
+              {t.admin.employees.createEmployee}
             </Button>
           ) : null
         }
@@ -161,7 +162,11 @@ export default function AdminEmployeesPage() {
                     <th className="px-4 py-2.5 font-medium">{t.admin.employees.colDepartment}</th>
                     <th className="px-4 py-2.5 font-medium">{t.admin.employees.colRoles}</th>
                     <th className="px-4 py-2.5 font-medium">{t.common.status}</th>
-                    {canManage ? <th className="px-4 py-2.5 text-end font-medium">{t.admin.employees.colManage}</th> : null}
+                    {canManage ? (
+                      <th className="px-4 py-2.5 text-end font-medium">
+                        {t.admin.employees.colManage}
+                      </th>
+                    ) : null}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--border-hairline)]">
@@ -172,15 +177,16 @@ export default function AdminEmployeesPage() {
                       </td>
                       <td className="px-4 py-2.5">
                         <p className="font-medium text-[var(--ink-primary)]">{emp.fullName}</p>
-                        <p dir="ltr" className="font-mono-tabular text-start text-[11px] text-[var(--ink-muted)]">
-                          {emp.email}
+                        <p
+                          dir="ltr"
+                          className="font-mono-tabular text-start text-[11px] text-[var(--ink-muted)]"
+                        >
+                          {[emp.phone, emp.email].filter(Boolean).join(' · ') || '—'}
                         </p>
                       </td>
                       <td className="px-4 py-2.5 text-[var(--ink-muted)]">
                         {emp.departmentName ?? t.common.unassigned}
-                        {emp.jobTitle ? (
-                          <span className="block text-[11px]">{emp.jobTitle}</span>
-                        ) : null}
+                        {emp.jobTitle ? <span className="block text-[11px]">{emp.jobTitle}</span> : null}
                       </td>
                       <td className="px-4 py-2.5">
                         <div className="flex flex-wrap gap-1">
@@ -191,7 +197,11 @@ export default function AdminEmployeesPage() {
                       </td>
                       <td className="px-4 py-2.5">
                         <StatusBadge
-                          label={emp.isActive ? translateStatus(emp.status) : translateStatus('deactivated')}
+                          label={
+                            emp.isActive
+                              ? translateStatus(emp.status)
+                              : translateStatus('deactivated')
+                          }
                           tone={
                             !emp.isActive
                               ? 'crimson'
@@ -218,19 +228,33 @@ export default function AdminEmployeesPage() {
       </Card>
 
       <ModalDialog
-        open={inviteOpen}
-        onClose={() => setInviteOpen(false)}
-        title={t.admin.employees.inviteTitle}
-        description={t.admin.employees.inviteDesc}
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        title={t.admin.employees.createTitle}
+        description={t.admin.employees.createDesc}
       >
-        <form onSubmit={form.handleSubmit((v) => inviteMutation.mutate(v))} className="space-y-4">
+        <form onSubmit={form.handleSubmit((v) => createMutation.mutate(v))} className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="emp-name">{t.common.fullName}</Label>
             <Input id="emp-name" {...form.register('fullName')} />
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="emp-email">{t.common.email}</Label>
-            <Input id="emp-email" type="email" dir="ltr" {...form.register('email')} />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="emp-phone">{t.common.phone}</Label>
+              <Input
+                id="emp-phone"
+                type="tel"
+                dir="ltr"
+                placeholder="+989123456789"
+                {...form.register('phone')}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="emp-email">
+                {t.common.email} ({t.common.optional})
+              </Label>
+              <Input id="emp-email" type="email" dir="ltr" {...form.register('email')} />
+            </div>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
@@ -268,11 +292,11 @@ export default function AdminEmployeesPage() {
             <Input id="emp-title" {...form.register('jobTitle')} />
           </div>
           <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={() => setInviteOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
               {t.common.cancel}
             </Button>
-            <Button type="submit" disabled={inviteMutation.isPending}>
-              {inviteMutation.isPending ? t.common.sending : t.admin.employees.sendInvite}
+            <Button type="submit" disabled={createMutation.isPending}>
+              {createMutation.isPending ? t.common.creating : t.admin.employees.createSubmit}
             </Button>
           </div>
         </form>

@@ -13,15 +13,23 @@ import { type AppEnv, validateEnv } from './infrastructure/config/env.schema';
 import { DatabaseModule } from './infrastructure/database/database.module';
 import { MailModule } from './infrastructure/mail/mail.module';
 import { RedisModule } from './infrastructure/redis/redis.module';
+import { SmsModule } from './infrastructure/sms/sms.module';
 import { StorageModule } from './infrastructure/storage/storage.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { ConversationsModule } from './modules/conversations/conversations.module';
 import { CustomersModule } from './modules/customers/customers.module';
 import { DepartmentsModule } from './modules/departments/departments.module';
+import { DocumentsModule } from './modules/documents/documents.module';
 import { EmployeesModule } from './modules/employees/employees.module';
 import { HealthModule } from './modules/health/health.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { OrdersModule } from './modules/orders/orders.module';
 import { RbacModule } from './modules/rbac/rbac.module';
+import { RealtimeModule } from './modules/realtime/realtime.module';
 import { SettingsModule } from './modules/settings/settings.module';
+import { TicketsModule } from './modules/tickets/tickets.module';
+import { WorkflowsModule } from './modules/workflows/workflows.module';
 
 @Module({
   imports: [
@@ -54,14 +62,22 @@ import { SettingsModule } from './modules/settings/settings.module';
     DatabaseModule,
     RedisModule,
     StorageModule,
+    SmsModule,
     MailModule,
     AuditModule,
     SettingsModule,
     RbacModule,
     AuthModule,
+    RealtimeModule,
+    NotificationsModule,
     DepartmentsModule,
     EmployeesModule,
     CustomersModule,
+    WorkflowsModule,
+    OrdersModule,
+    DocumentsModule,
+    ConversationsModule,
+    TicketsModule,
     HealthModule,
   ],
   providers: [

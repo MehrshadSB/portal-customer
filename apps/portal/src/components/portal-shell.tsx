@@ -1,8 +1,16 @@
 'use client';
 
 import { useI18n } from '@portal/i18n/react';
-import { PERMISSIONS } from '@portal/types';
-import { AppShell, Button, LocaleSwitcher, StatusBadge, type NavItem } from '@portal/ui';
+import { PERMISSIONS, REALTIME_EVENTS, type NotificationDto } from '@portal/types';
+import {
+  AppShell,
+  Button,
+  LocaleSwitcher,
+  NotificationBell,
+  StatusBadge,
+  type NavItem,
+} from '@portal/ui';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   FileText,
   FolderLock,
@@ -13,15 +21,56 @@ import {
   Users,
 } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import * as React from 'react';
 import { usePortalSession } from '@/hooks/use-portal-session';
-import { portalApi } from '@/lib/api';
+import { createPortalSocket, portalApi } from '@/lib/api';
 
 export function PortalShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const { user, isLoading, hasPermission, logout, refetch } = usePortalSession(true);
   const { t, brandName, translateRole } = useI18n();
+
+  const notificationsQuery = useQuery({
+    queryKey: ['portal', 'notifications'],
+    queryFn: async () => (await portalApi.get<NotificationDto[]>('/notifications?limit=15')).data,
+    enabled: Boolean(user),
+  });
+
+  const unreadQuery = useQuery({
+    queryKey: ['portal', 'notifications', 'unread'],
+    queryFn: async () =>
+      (await portalApi.get<{ unreadCount: number }>('/notifications/unread-count')).data,
+    enabled: Boolean(user),
+  });
+
+  React.useEffect(() => {
+    if (!user) return;
+    const socket = createPortalSocket();
+    socket.on(REALTIME_EVENTS.NOTIFICATION_NEW, () => {
+      void queryClient.invalidateQueries({ queryKey: ['portal', 'notifications'] });
+    });
+    socket.connect();
+    return () => {
+      socket.disconnect();
+    };
+  }, [user, queryClient]);
+
+  const markRead = useMutation({
+    mutationFn: (id: string) => portalApi.patch(`/notifications/${id}/read`),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['portal', 'notifications'] });
+    },
+  });
+
+  const markAllRead = useMutation({
+    mutationFn: () => portalApi.post('/notifications/read-all'),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['portal', 'notifications'] });
+    },
+  });
 
   if (isLoading || !user) {
     return (
@@ -41,29 +90,37 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
       icon: <LayoutDashboard className="h-4 w-4" />,
       active: pathname === '/',
     },
-    {
-      label: t.portal.nav.orders,
-      href: '/#orders',
-      icon: <FileText className="h-4 w-4" />,
-      badge: '1B',
-      active: pathname.startsWith('/orders'),
-    },
-    {
-      label: t.portal.nav.tickets,
-      href: '/#tickets',
-      icon: <LifeBuoy className="h-4 w-4" />,
-      badge: '1C',
-      active: pathname.startsWith('/tickets'),
-    },
-    {
-      label: t.portal.nav.documents,
-      href: '/#documents',
-      icon: <FolderLock className="h-4 w-4" />,
-      badge: '1B',
-      active: pathname.startsWith('/documents'),
-    },
-    ...(hasPermission(PERMISSIONS.CUSTOMER_MEMBER_MANAGE_OWN) ||
-    hasPermission(PERMISSIONS.CUSTOMER_READ_OWN)
+    ...(hasPermission(PERMISSIONS.ORDER_READ_COMPANY)
+      ? [
+          {
+            label: t.portal.nav.orders,
+            href: '/orders',
+            icon: <FileText className="h-4 w-4" />,
+            active: pathname.startsWith('/orders'),
+          },
+        ]
+      : []),
+    ...(hasPermission(PERMISSIONS.TICKET_READ_COMPANY)
+      ? [
+          {
+            label: t.portal.nav.tickets,
+            href: '/tickets',
+            icon: <LifeBuoy className="h-4 w-4" />,
+            active: pathname.startsWith('/tickets'),
+          },
+        ]
+      : []),
+    ...(hasPermission(PERMISSIONS.DOCUMENT_READ_PUBLIC)
+      ? [
+          {
+            label: t.portal.nav.documents,
+            href: '/documents',
+            icon: <FolderLock className="h-4 w-4" />,
+            active: pathname.startsWith('/documents'),
+          },
+        ]
+      : []),
+    ...(hasPermission(PERMISSIONS.CUSTOMER_READ_OWN)
       ? [
           {
             label: t.portal.nav.team,
@@ -92,15 +149,17 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
             {item.icon}
             <span>{item.label}</span>
           </span>
-          {item.badge ? (
-            <span className="font-mono-tabular rounded bg-[var(--bg-subtle)] px-1.5 py-0.5 text-[10px] text-[var(--ink-muted)]">
-              {item.badge}
-            </span>
-          ) : null}
         </Link>
       )}
       headerActions={
         <div className="flex items-center gap-2.5">
+          <NotificationBell
+            notifications={notificationsQuery.data ?? []}
+            unreadCount={unreadQuery.data?.unreadCount ?? 0}
+            onMarkRead={(id) => markRead.mutate(id)}
+            onMarkAllRead={() => markAllRead.mutate()}
+            onNavigate={(url) => router.push(url)}
+          />
           <LocaleSwitcher
             onLocaleChange={(next) => {
               void portalApi.patch('/profile', { locale: next }).then(() => refetch());
@@ -117,8 +176,11 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
       sidebarFooter={
         <div className="space-y-0.5">
           <p className="truncate text-xs font-medium text-[var(--ink-primary)]">{user.fullName}</p>
-          <p dir="ltr" className="truncate font-mono-tabular text-start text-[11px] text-[var(--ink-muted)]">
-            {user.email}
+          <p
+            dir="ltr"
+            className="font-mono-tabular truncate text-start text-[11px] text-[var(--ink-muted)]"
+          >
+            {user.phone ?? user.email ?? '—'}
           </p>
         </div>
       }

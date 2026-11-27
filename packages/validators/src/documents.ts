@@ -1,6 +1,6 @@
 import { ATTACHMENT_VISIBILITIES } from '@portal/types';
 import { z } from 'zod';
-import { uuidSchema } from './common';
+import { paginationQuerySchema, uuidSchema } from './common';
 
 export const ALLOWED_DOCUMENT_MIME_TYPES = [
   'application/pdf',
@@ -42,4 +42,13 @@ export const presignUploadSchema = z
     },
   );
 
+export const listDocumentsQuerySchema = paginationQuerySchema.extend({
+  customerId: uuidSchema.optional(),
+  orderId: uuidSchema.optional(),
+  ticketId: uuidSchema.optional(),
+  messageId: uuidSchema.optional(),
+  visibility: z.enum(ATTACHMENT_VISIBILITIES).optional(),
+});
+
 export type PresignUploadInput = z.infer<typeof presignUploadSchema>;
+export type ListDocumentsQueryInput = z.infer<typeof listDocumentsQuerySchema>;

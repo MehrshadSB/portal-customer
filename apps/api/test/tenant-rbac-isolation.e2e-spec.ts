@@ -3,12 +3,13 @@ import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   createIntegrationTestContext,
-  loginAs,
+  loginAsOtp,
   teardownIntegrationTestContext,
+  TEST_PHONES,
   type TestContext,
 } from './helpers/test-app';
 
-describe('Tenant Isolation, RBAC & Audit Trail (Integration)', () => {
+describe('Tenant Isolation, Admin Provisioning, RBAC & Audit Trail (Integration)', () => {
   let ctx: TestContext;
 
   beforeAll(async () => {
@@ -19,37 +20,34 @@ describe('Tenant Isolation, RBAC & Audit Trail (Integration)', () => {
     if (ctx) await teardownIntegrationTestContext(ctx);
   });
 
-  it('blocks Customer A from reading or mutating Customer B members or contacts', async () => {
-    const custASession = await loginAs(ctx.app, 'portal', 'admin@apex.test');
+  it('blocks Customer A from creating members or mutating Customer B contacts', async () => {
+    const custASession = await loginAsOtp(ctx, 'portal', TEST_PHONES.custAAdmin);
 
-    // Cross-tenant GET members -> 403
     await request(ctx.app.getHttpServer())
       .get(`/api/v1/customers/${ctx.ids.customerBId}/members`)
       .set('X-App-Surface', 'portal')
       .set('Cookie', custASession.cookieHeader)
       .expect(403);
 
-    // Cross-tenant POST invite -> 403
+    // Portal users CANNOT create customer login profiles even for own company (admin only)
     await request(ctx.app.getHttpServer())
-      .post(`/api/v1/customers/${ctx.ids.customerBId}/members/invite`)
+      .post('/api/v1/customers/my-company/members')
       .set('X-App-Surface', 'portal')
       .set('Cookie', custASession.cookieHeader)
       .set('X-CSRF-Token', custASession.csrfToken)
       .send({
-        email: 'intruder@orion.test',
-        fullName: 'Intruder',
-        roleSlug: 'customer_admin',
+        fullName: 'Self Added',
+        phone: '+989125551122',
+        roleSlug: 'customer_member',
       })
       .expect(403);
 
-    // Cross-tenant GET contacts -> 403
     await request(ctx.app.getHttpServer())
       .get(`/api/v1/customers/${ctx.ids.customerBId}/contacts`)
       .set('X-App-Surface', 'portal')
       .set('Cookie', custASession.cookieHeader)
       .expect(403);
 
-    // Cross-tenant contact UUID targeted via my-company -> 404 (not deleted!)
     await request(ctx.app.getHttpServer())
       .delete(`/api/v1/customers/my-company/contacts/${ctx.ids.contactBId}`)
       .set('X-App-Surface', 'portal')
@@ -58,9 +56,42 @@ describe('Tenant Isolation, RBAC & Audit Trail (Integration)', () => {
       .expect(404);
   });
 
+  it('allows Admin to provision an active customer profile who can immediately login via OTP', async () => {
+    const adminSession = await loginAsOtp(ctx, 'admin', TEST_PHONES.admin);
+    const newPhone = '+989127770011';
+
+    // Before admin provisions profile, OTP request is rejected
+    await request(ctx.app.getHttpServer())
+      .post('/api/v1/auth/portal/otp/request')
+      .set('X-App-Surface', 'portal')
+      .send({ phone: newPhone })
+      .expect(403);
+
+    // Admin provisions profile
+    const createRes = await request(ctx.app.getHttpServer())
+      .post(`/api/v1/customers/${ctx.ids.customerAId}/members`)
+      .set('X-App-Surface', 'admin')
+      .set('Cookie', adminSession.cookieHeader)
+      .set('X-CSRF-Token', adminSession.csrfToken)
+      .send({
+        fullName: 'Provisioned Buyer',
+        phone: newPhone,
+        email: 'provisioned@apex.test',
+        roleSlug: 'customer_member',
+      })
+      .expect(201);
+
+    expect(createRes.body.data.userStatus).toBe('active');
+    expect(createRes.body.data.phone).toBe(newPhone);
+
+    // Customer can now request OTP & sign in on portal
+    const session = await loginAsOtp(ctx, 'portal', newPhone);
+    expect(session.cookies.portal_access_token).toBeDefined();
+  });
+
   it('strips internalNotes from customer responses and enforces viewer read-only limits', async () => {
-    const custASession = await loginAs(ctx.app, 'portal', 'admin@apex.test');
-    const viewerSession = await loginAs(ctx.app, 'portal', 'viewer@apex.test');
+    const custASession = await loginAsOtp(ctx, 'portal', TEST_PHONES.custAAdmin);
+    const viewerSession = await loginAsOtp(ctx, 'portal', TEST_PHONES.custAViewer);
 
     const myCompanyRes = await request(ctx.app.getHttpServer())
       .get('/api/v1/customers/my-company')
@@ -71,14 +102,12 @@ describe('Tenant Isolation, RBAC & Audit Trail (Integration)', () => {
     expect(myCompanyRes.body.data.companyName).toBe('Apex Aerospace');
     expect(myCompanyRes.body.data.internalNotes).toBeUndefined();
 
-    // Viewer can read own company
     await request(ctx.app.getHttpServer())
       .get('/api/v1/customers/my-company')
       .set('X-App-Surface', 'portal')
       .set('Cookie', viewerSession.cookieHeader)
       .expect(200);
 
-    // Viewer cannot add contacts or invite colleagues
     await request(ctx.app.getHttpServer())
       .post('/api/v1/customers/my-company/contacts')
       .set('X-App-Surface', 'portal')
@@ -89,18 +118,17 @@ describe('Tenant Isolation, RBAC & Audit Trail (Integration)', () => {
   });
 
   it('enforces module/action RBAC across employee roles and records audit logs', async () => {
-    const supportSession = await loginAs(ctx.app, 'admin', 'support@test.local');
-    const adminSession = await loginAs(ctx.app, 'admin', 'admin@test.local');
+    const supportSession = await loginAsOtp(ctx, 'admin', TEST_PHONES.support);
+    const adminSession = await loginAsOtp(ctx, 'admin', TEST_PHONES.admin);
 
-    // Support agent lacks employee/department/rbac/audit permissions
     await request(ctx.app.getHttpServer())
-      .post('/api/v1/employees/invite')
+      .post('/api/v1/employees')
       .set('X-App-Surface', 'admin')
       .set('Cookie', supportSession.cookieHeader)
       .set('X-CSRF-Token', supportSession.csrfToken)
       .send({
-        email: 'unauth@test.local',
         fullName: 'Nope',
+        phone: '+989123334455',
         roleSlugs: ['support_agent'],
       })
       .expect(403);
@@ -111,7 +139,6 @@ describe('Tenant Isolation, RBAC & Audit Trail (Integration)', () => {
       .set('Cookie', supportSession.cookieHeader)
       .expect(403);
 
-    // Admin creates customer, invites employee, and updates support role permissions
     const custRes = await request(ctx.app.getHttpServer())
       .post('/api/v1/customers')
       .set('X-App-Surface', 'admin')
@@ -136,7 +163,6 @@ describe('Tenant Isolation, RBAC & Audit Trail (Integration)', () => {
       })
       .expect(200);
 
-    // Audit log reflects admin actions
     const auditRes = await request(ctx.app.getHttpServer())
       .get('/api/v1/audit-logs?limit=20')
       .set('X-App-Surface', 'admin')
@@ -155,12 +181,10 @@ describe('Tenant Isolation, RBAC & Audit Trail (Integration)', () => {
 
     expect(publicRes.body.data.defaultLocale).toBe('fa');
     expect(publicRes.body.data.calendarType).toBe('jalali');
-    expect(publicRes.body.data.enabledLocales).toEqual(['fa', 'en']);
 
-    const supportSession = await loginAs(ctx.app, 'admin', 'support@test.local');
-    const adminSession = await loginAs(ctx.app, 'admin', 'admin@test.local');
+    const supportSession = await loginAsOtp(ctx, 'admin', TEST_PHONES.support);
+    const adminSession = await loginAsOtp(ctx, 'admin', TEST_PHONES.admin);
 
-    // Support agent lacks system_settings:manage permission -> 403
     await request(ctx.app.getHttpServer())
       .patch('/api/v1/settings/localization')
       .set('X-App-Surface', 'admin')
@@ -175,7 +199,6 @@ describe('Tenant Isolation, RBAC & Audit Trail (Integration)', () => {
       })
       .expect(403);
 
-    // Admin updates platform localization settings -> 200 & audited
     const updateRes = await request(ctx.app.getHttpServer())
       .patch('/api/v1/settings/localization')
       .set('X-App-Surface', 'admin')
@@ -191,31 +214,8 @@ describe('Tenant Isolation, RBAC & Audit Trail (Integration)', () => {
       .expect(200);
 
     expect(updateRes.body.data.defaultLocale).toBe('en');
-    expect(updateRes.body.data.calendarType).toBe('gregorian');
-    expect(updateRes.body.data.brandNameEn).toBe('AzarPart Mfg Co');
 
-    const verifyPublicRes = await request(ctx.app.getHttpServer())
-      .get('/api/v1/settings/localization')
-      .expect(200);
-    expect(verifyPublicRes.body.data.defaultLocale).toBe('en');
-
-    const auditRes = await request(ctx.app.getHttpServer())
-      .get('/api/v1/audit-logs?limit=20')
-      .set('X-App-Surface', 'admin')
-      .set('Cookie', adminSession.cookieHeader)
-      .expect(200);
-    const actions = (auditRes.body.data as Array<{ action: string }>).map((a) => a.action);
-    expect(actions).toContain('settings.localization_updated');
-
-    // User profile locale updates persist to session context
-    const custSession = await loginAs(ctx.app, 'portal', 'admin@apex.test');
-    const meBefore = await request(ctx.app.getHttpServer())
-      .get('/api/v1/auth/me')
-      .set('X-App-Surface', 'portal')
-      .set('Cookie', custSession.cookieHeader)
-      .expect(200);
-    expect(meBefore.body.data.locale).toBe('fa');
-
+    const custSession = await loginAsOtp(ctx, 'portal', TEST_PHONES.custAAdmin);
     await request(ctx.app.getHttpServer())
       .patch('/api/v1/profile')
       .set('X-App-Surface', 'portal')

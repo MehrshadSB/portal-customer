@@ -7,15 +7,14 @@ import {
 } from '@nestjs/common';
 import type { EmployeeDto, PaginationMeta } from '@portal/types';
 import type {
-  InviteEmployeeInput,
+  CreateEmployeeInput,
   ListEmployeesQueryInput,
   UpdateEmployeeInput,
 } from '@portal/validators';
-import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import type { AuthenticatedActor, RequestMetadata } from '../../common/types/auth-context';
 import { DRIZZLE_DB, type DrizzleDb } from '../../infrastructure/database/database.module';
 import {
-  authTokens,
   departments,
   employeeRoles,
   employees,
@@ -25,7 +24,6 @@ import {
 import { MailService } from '../../infrastructure/mail/mail.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthStateService } from '../auth/auth-state.service';
-import { generateOpaqueToken, hashToken } from '../auth/auth.service';
 import { SettingsService } from '../settings/settings.service';
 
 @Injectable()
@@ -47,7 +45,7 @@ export class EmployeesService {
     if (query.search) {
       const pattern = `%${query.search}%`;
       conditions.push(
-        sql`(${users.fullName} ILIKE ${pattern} OR ${users.email} ILIKE ${pattern} OR ${employees.employeeCode} ILIKE ${pattern})`,
+        sql`(${users.fullName} ILIKE ${pattern} OR COALESCE(${users.email}, '') ILIKE ${pattern} OR COALESCE(${users.phone}, '') ILIKE ${pattern} OR ${employees.employeeCode} ILIKE ${pattern})`,
       );
     }
 
@@ -124,20 +122,34 @@ export class EmployeesService {
     };
   }
 
-  async invite(
-    dto: InviteEmployeeInput,
+  async create(
+    dto: CreateEmployeeInput,
     actor: AuthenticatedActor,
     meta: RequestMetadata,
   ): Promise<EmployeeDto> {
-    const existing = await this.db
+    const existingPhone = await this.db
       .select({ id: users.id })
       .from(users)
-      .where(and(sql`lower(${users.email}) = ${dto.email}`, isNull(users.deletedAt)));
-    if (existing.length > 0) {
+      .where(and(eq(users.phone, dto.phone), isNull(users.deletedAt)));
+    if (existingPhone.length > 0) {
       throw new ConflictException({
-        code: 'EMAIL_ALREADY_EXISTS',
-        message: 'A user with this email already exists',
+        code: 'PHONE_ALREADY_EXISTS',
+        message: 'A user with this mobile number already exists',
       });
+    }
+
+    const emailNormalized = dto.email ? dto.email.trim().toLowerCase() : null;
+    if (emailNormalized) {
+      const existingEmail = await this.db
+        .select({ id: users.id })
+        .from(users)
+        .where(and(sql`lower(${users.email}) = ${emailNormalized}`, isNull(users.deletedAt)));
+      if (existingEmail.length > 0) {
+        throw new ConflictException({
+          code: 'EMAIL_ALREADY_EXISTS',
+          message: 'A user with this email already exists',
+        });
+      }
     }
 
     const targetRoles = await this.db
@@ -152,7 +164,6 @@ export class EmployeesService {
       });
     }
 
-    const rawToken = generateOpaqueToken();
     const localization = await this.settingsService.getLocalization();
 
     const createdEmployeeId = await this.db.transaction(async (tx) => {
@@ -165,10 +176,11 @@ export class EmployeesService {
       const [user] = await tx
         .insert(users)
         .values({
-          email: dto.email,
+          email: emailNormalized,
+          phone: dto.phone,
           fullName: dto.fullName,
           userType: 'employee',
-          status: 'invited',
+          status: 'active',
           locale: localization.defaultLocale,
         })
         .returning();
@@ -195,22 +207,15 @@ export class EmployeesService {
         })),
       );
 
-      await tx.insert(authTokens).values({
-        userId: user.id,
-        purpose: 'invite',
-        tokenHash: hashToken(rawToken),
-        expiresAt: new Date(Date.now() + 72 * 60 * 60 * 1000),
-      });
-
       await this.auditService.record(
         {
           actorUserId: actor.id,
           actorType: 'employee',
-          action: 'employee.invited',
+          action: 'employee.provisioned',
           entityType: 'employee',
           entityId: employee.id,
-          summary: `Invited employee ${dto.fullName} (${employeeCode})`,
-          afterJson: { email: dto.email, employeeCode, roles: dto.roleSlugs },
+          summary: `Provisioned employee ${dto.fullName} (${employeeCode})`,
+          afterJson: { phone: dto.phone, email: emailNormalized, employeeCode, roles: dto.roleSlugs },
           meta,
         },
         tx,
@@ -219,13 +224,15 @@ export class EmployeesService {
       return employee.id;
     });
 
-    await this.mailService.enqueueInvite({
-      to: dto.email,
-      fullName: dto.fullName,
-      surface: 'admin',
-      token: rawToken,
-      locale: localization.defaultLocale,
-    });
+    if (emailNormalized) {
+      await this.mailService.enqueueProfileProvisioned({
+        to: emailNormalized,
+        fullName: dto.fullName,
+        surface: 'admin',
+        phone: dto.phone,
+        locale: localization.defaultLocale,
+      });
+    }
 
     return this.getById(createdEmployeeId);
   }
@@ -286,6 +293,42 @@ export class EmployeesService {
       });
     }
 
+    if (dto.phone !== undefined && dto.phone !== before.phone) {
+      const conflictPhone = await this.db
+        .select({ id: users.id })
+        .from(users)
+        .where(
+          and(eq(users.phone, dto.phone), ne(users.id, before.userId), isNull(users.deletedAt)),
+        );
+      if (conflictPhone.length > 0) {
+        throw new ConflictException({
+          code: 'PHONE_ALREADY_EXISTS',
+          message: 'A user with this mobile number already exists',
+        });
+      }
+    }
+
+    const nextEmail =
+      dto.email === undefined ? undefined : dto.email ? dto.email.trim().toLowerCase() : null;
+    if (nextEmail) {
+      const conflictEmail = await this.db
+        .select({ id: users.id })
+        .from(users)
+        .where(
+          and(
+            sql`lower(${users.email}) = ${nextEmail}`,
+            ne(users.id, before.userId),
+            isNull(users.deletedAt),
+          ),
+        );
+      if (conflictEmail.length > 0) {
+        throw new ConflictException({
+          code: 'EMAIL_ALREADY_EXISTS',
+          message: 'A user with this email already exists',
+        });
+      }
+    }
+
     const targetRoles = dto.roleSlugs
       ? await this.db
           .select()
@@ -301,12 +344,18 @@ export class EmployeesService {
     }
 
     await this.db.transaction(async (tx) => {
-      if (dto.fullName !== undefined || dto.phone !== undefined || dto.status !== undefined) {
+      if (
+        dto.fullName !== undefined ||
+        dto.phone !== undefined ||
+        nextEmail !== undefined ||
+        dto.status !== undefined
+      ) {
         await tx
           .update(users)
           .set({
             ...(dto.fullName !== undefined ? { fullName: dto.fullName } : {}),
             ...(dto.phone !== undefined ? { phone: dto.phone } : {}),
+            ...(nextEmail !== undefined ? { email: nextEmail } : {}),
             ...(dto.status !== undefined ? { status: dto.status } : {}),
             ...(dto.status === 'suspended' ? { tokenVersion: sql`${users.tokenVersion} + 1` } : {}),
             updatedAt: new Date(),

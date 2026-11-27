@@ -1,10 +1,18 @@
-import { advanceOrderProgressSchema, createOrderSchema, loginSchema } from '@portal/validators';
+import {
+  advanceOrderProgressSchema,
+  createOrderSchema,
+  requestOtpSchema,
+  verifyOtpSchema,
+} from '@portal/validators';
 import { describe, expect, it } from 'vitest';
 
 describe('Admin validation contracts', () => {
-  it('normalizes operator login email', () => {
-    const parsed = loginSchema.parse({ email: 'Admin@Platform.Local', password: 'secret' });
-    expect(parsed.email).toBe('admin@platform.local');
+  it('normalizes operator mobile phone for OTP login', () => {
+    const req = requestOtpSchema.parse({ phone: '۰۹۱۲۰۰۰۰۰۰۱' });
+    expect(req.phone).toBe('+989120000001');
+
+    const ver = verifyOtpSchema.parse({ phone: '+989120000001', code: '654321' });
+    expect(ver.code).toBe('654321');
   });
 
   it('validates custom manufacturing order with optional line items', () => {

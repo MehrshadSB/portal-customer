@@ -4,4 +4,5 @@ export * from './customers';
 export * from './orders';
 export * from './tickets';
 export * from './documents';
+export * from './notifications';
 export * from './org';

@@ -1,13 +1,13 @@
 import { relations } from 'drizzle-orm';
 import { contacts, customerMembers, customers } from './customers';
 import {
-  authTokens,
   departments,
   employeeRoles,
   employees,
   permissions,
   rolePermissions,
   roles,
+  userIdentities,
   users,
 } from './identity';
 import {
@@ -30,9 +30,13 @@ import {
 export const usersRelations = relations(users, ({ one, many }) => ({
   employee: one(employees, { fields: [users.id], references: [employees.userId] }),
   customerMember: one(customerMembers, { fields: [users.id], references: [customerMembers.userId] }),
-  authTokens: many(authTokens),
+  identities: many(userIdentities),
   notifications: many(notifications),
   notificationPreferences: many(notificationPreferences),
+}));
+
+export const userIdentitiesRelations = relations(userIdentities, ({ one }) => ({
+  user: one(users, { fields: [userIdentities.userId], references: [users.id] }),
 }));
 
 export const employeesRelations = relations(employees, ({ one, many }) => ({

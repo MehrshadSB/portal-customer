@@ -19,7 +19,18 @@ export interface RecordAuditEntry {
   meta?: RequestMetadata;
 }
 
-const SENSITIVE_KEYS = new Set(['password', 'passwordhash', 'token', 'tokenhash', 'secret']);
+const SENSITIVE_KEYS = new Set([
+  'password',
+  'passwordhash',
+  'token',
+  'tokenhash',
+  'secret',
+  'otp',
+  'code',
+  'codehash',
+  'code_verifier',
+  'id_token',
+]);
 
 function redactSensitive(value: unknown): unknown {
   if (Array.isArray(value)) {

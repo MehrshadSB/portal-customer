@@ -11,3 +11,7 @@ export * from './components/empty-state';
 export * from './components/app-shell';
 export * from './components/auth-forms';
 export * from './components/locale-switcher';
+export * from './components/order-stage-stepper';
+export * from './components/conversation-thread';
+export * from './components/file-dropzone';
+export * from './components/notification-bell';

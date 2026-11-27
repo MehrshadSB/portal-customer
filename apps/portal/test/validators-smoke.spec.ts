@@ -5,7 +5,12 @@ import {
   getDirection,
   resolveLocale,
 } from '@portal/i18n';
-import { createTicketSchema, loginSchema, presignUploadSchema } from '@portal/validators';
+import {
+  createTicketSchema,
+  presignUploadSchema,
+  requestOtpSchema,
+  verifyOtpSchema,
+} from '@portal/validators';
 import { describe, expect, it } from 'vitest';
 
 function collectLeafKeys(obj: Record<string, unknown>, prefix = ''): string[] {
@@ -21,9 +26,13 @@ function collectLeafKeys(obj: Record<string, unknown>, prefix = ''): string[] {
 }
 
 describe('Portal validation & localization contracts', () => {
-  it('normalizes login email to lowercase', () => {
-    const parsed = loginSchema.parse({ email: 'Buyer@Apex-Aero.Local', password: 'secret' });
-    expect(parsed.email).toBe('buyer@apex-aero.local');
+  it('normalizes Persian and local mobile numbers to E.164 for OTP', () => {
+    const parsed = requestOtpSchema.parse({ phone: '۰۹۱۲۳۴۵۶۷۸۹' });
+    expect(parsed.phone).toBe('+989123456789');
+
+    const verified = verifyOtpSchema.parse({ phone: '09123456789', code: '۱۲۳۴۵۶' });
+    expect(verified.phone).toBe('+989123456789');
+    expect(verified.code).toBe('123456');
   });
 
   it('requires presigned attachments to link to a domain entity', () => {

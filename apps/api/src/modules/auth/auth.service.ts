@@ -1,28 +1,17 @@
 import {
-  BadRequestException,
   ForbiddenException,
-  HttpException,
-  HttpStatus,
   Inject,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { resolveLocale } from '@portal/i18n';
-import type { AppSurface } from '@portal/types';
-import type {
-  AcceptInviteInput,
-  ChangePasswordInput,
-  LoginInput,
-  ResetPasswordInput,
-  UpdateProfileInput,
-} from '@portal/validators';
-import * as argon2 from 'argon2';
-import { and, eq, gt, isNull, sql } from 'drizzle-orm';
+import type { AppSurface, AuthMethodsDto, OtpRequestResponseDto } from '@portal/types';
+import type { RequestOtpInput, UpdateProfileInput, VerifyOtpInput } from '@portal/validators';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { Response } from 'express';
 import Redis from 'ioredis';
-import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
+import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { AccessJwtPayload } from '../../common/guards/jwt-auth.guard';
 import {
   type AuthenticatedActor,
@@ -31,21 +20,19 @@ import {
 } from '../../common/types/auth-context';
 import type { AppEnv } from '../../infrastructure/config/env.schema';
 import { DRIZZLE_DB, type DrizzleDb } from '../../infrastructure/database/database.module';
-import { authTokens, customerMembers, users } from '../../infrastructure/database/schema';
-import { MailService } from '../../infrastructure/mail/mail.service';
+import { users } from '../../infrastructure/database/schema';
 import { REDIS_CLIENT } from '../../infrastructure/redis/redis.module';
 import { AuditService } from '../audit/audit.service';
-import { RbacService } from '../rbac/rbac.service';
 import { AuthStateService } from './auth-state.service';
+import { OidcService } from './oidc.service';
+import { OtpService } from './otp.service';
+import { createHash } from 'node:crypto';
 
 interface RefreshSessionRecord {
   userId: string;
   tokenHash: string;
   tokenVersion: number;
 }
-
-const LOGIN_RATE_LIMIT_MAX = 5;
-const LOGIN_RATE_LIMIT_WINDOW_SECONDS = 900;
 
 export function hashToken(raw: string): string {
   return createHash('sha256').update(raw).digest('hex');
@@ -66,11 +53,11 @@ export class AuthService {
     @Inject(DRIZZLE_DB) private readonly db: DrizzleDb,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly jwtService: JwtService,
-    private readonly config: ConfigService<AppEnv, true>,
-    private readonly rbacService: RbacService,
+    config: ConfigService<AppEnv, true>,
     private readonly authStateService: AuthStateService,
     private readonly auditService: AuditService,
-    private readonly mailService: MailService,
+    private readonly otpService: OtpService,
+    private readonly oidcService: OidcService,
   ) {
     this.accessTtlSeconds = config.get('JWT_ACCESS_TTL_SECONDS', { infer: true });
     this.refreshTtlSeconds = config.get('REFRESH_TOKEN_TTL_SECONDS', { infer: true });
@@ -86,8 +73,12 @@ export class AuthService {
     return `refresh_families:${surface}:${userId}`;
   }
 
-  private rateLimitKey(surface: AppSurface, ip: string | null, email: string): string {
-    return `rl:login:${surface}:${ip ?? 'unknown'}:${email}`;
+  getAuthMethods(): AuthMethodsDto {
+    return this.oidcService.getAuthMethods();
+  }
+
+  getSurfaceBaseUrl(surface: AppSurface): string {
+    return this.oidcService.getSurfaceBaseUrl(surface);
   }
 
   private async issueCookiesForUser(
@@ -159,56 +150,37 @@ export class AuthService {
     res.clearCookie(`${surface}_csrf_token`, { ...baseOpts, httpOnly: false });
   }
 
-  async login(
+  async requestOtp(
     surface: AppSurface,
-    dto: LoginInput,
+    dto: RequestOtpInput,
+    meta: RequestMetadata,
+  ): Promise<OtpRequestResponseDto> {
+    return this.otpService.requestOtp(surface, dto.phone, meta);
+  }
+
+  async verifyOtp(
+    surface: AppSurface,
+    dto: VerifyOtpInput,
     res: Response,
     meta: RequestMetadata,
   ): Promise<AuthenticatedActor> {
-    const rlKey = this.rateLimitKey(surface, meta.ipAddress, dto.email);
-    const failedCount = Number((await this.redis.get(rlKey)) ?? '0');
-    if (failedCount >= LOGIN_RATE_LIMIT_MAX) {
-      throw new HttpException(
-        {
-          code: 'RATE_LIMITED',
-          message: 'Too many failed login attempts. Please wait 15 minutes before retrying.',
-        },
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    }
-
+    const userId = await this.otpService.verifyOtp(surface, dto.phone, dto.code, meta);
     const expectedType = expectedUserTypeForSurface(surface);
+
     const [user] = await this.db
       .select()
       .from(users)
-      .where(and(sql`lower(${users.email}) = ${dto.email}`, isNull(users.deletedAt)));
+      .where(
+        and(eq(users.id, userId), eq(users.userType, expectedType), isNull(users.deletedAt)),
+      );
 
-    const passwordValid =
-      user && user.passwordHash && user.userType === expectedType && user.status === 'active'
-        ? await argon2.verify(user.passwordHash, dto.password)
-        : false;
-
-    if (!user || !passwordValid) {
-      const nextCount = await this.redis.incr(rlKey);
-      if (nextCount === 1) {
-        await this.redis.expire(rlKey, LOGIN_RATE_LIMIT_WINDOW_SECONDS);
-      }
-      await this.auditService.record({
-        actorUserId: user?.id ?? null,
-        actorType: expectedType,
-        action: 'auth.login_failed',
-        entityType: 'user',
-        entityId: user?.id ?? null,
-        summary: `Failed ${surface} login attempt for ${dto.email}`,
-        meta,
-      });
-      throw new UnauthorizedException({
-        code: 'INVALID_CREDENTIALS',
-        message: 'Invalid email or password',
+    if (!user) {
+      throw new ForbiddenException({
+        code: 'PROFILE_NOT_PROVISIONED',
+        message: 'No active profile exists for this mobile number',
       });
     }
 
-    await this.redis.del(rlKey);
     await this.db
       .update(users)
       .set({ lastLoginAt: new Date(), updatedAt: new Date() })
@@ -218,7 +190,7 @@ export class AuthService {
     const actor = await this.authStateService.getActiveActor(user.id, surface);
     if (!actor) {
       throw new ForbiddenException({
-        code: 'ACCOUNT_INACTIVE',
+        code: 'PROFILE_NOT_PROVISIONED',
         message: 'Your organization or account is currently inactive',
       });
     }
@@ -233,10 +205,43 @@ export class AuthService {
       actorUserId: user.id,
       actorType: user.userType,
       customerId: actor.customerId,
-      action: 'auth.login',
+      action: 'auth.otp_login',
       entityType: 'user',
       entityId: user.id,
-      summary: `Signed in to ${surface} surface`,
+      summary: `Signed in to ${surface} surface via SMS OTP`,
+      meta,
+    });
+
+    return actor;
+  }
+
+  async startSso(surface: AppSurface): Promise<string> {
+    return this.oidcService.startAuthorization(surface);
+  }
+
+  async completeSsoCallback(
+    surface: AppSurface,
+    query: { code?: string; state?: string; error?: string },
+    res: Response,
+    meta: RequestMetadata,
+  ): Promise<AuthenticatedActor> {
+    const { user, actor } = await this.oidcService.verifyCallback(surface, query, meta);
+
+    await this.db
+      .update(users)
+      .set({ lastLoginAt: new Date(), updatedAt: new Date() })
+      .where(eq(users.id, user.id));
+
+    await this.issueCookiesForUser(res, surface, user);
+
+    await this.auditService.record({
+      actorUserId: user.id,
+      actorType: user.userType,
+      customerId: actor.customerId,
+      action: 'auth.sso_login',
+      entityType: 'user',
+      entityId: user.id,
+      summary: `Signed in to ${surface} surface via OIDC SSO`,
       meta,
     });
 
@@ -373,198 +378,6 @@ export class AuthService {
     });
   }
 
-  async forgotPassword(surface: AppSurface, email: string): Promise<void> {
-    const expectedType = expectedUserTypeForSurface(surface);
-    const [user] = await this.db
-      .select()
-      .from(users)
-      .where(
-        and(
-          sql`lower(${users.email}) = ${email}`,
-          eq(users.userType, expectedType),
-          eq(users.status, 'active'),
-          isNull(users.deletedAt),
-        ),
-      );
-
-    if (!user) return;
-
-    const rawToken = generateOpaqueToken();
-    await this.db.insert(authTokens).values({
-      userId: user.id,
-      purpose: 'password_reset',
-      tokenHash: hashToken(rawToken),
-      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
-    });
-
-    await this.mailService.enqueuePasswordReset({
-      to: user.email,
-      fullName: user.fullName,
-      surface,
-      token: rawToken,
-      locale: resolveLocale(user.locale),
-    });
-  }
-
-  async resetPassword(
-    surface: AppSurface,
-    dto: ResetPasswordInput,
-    meta: RequestMetadata,
-  ): Promise<void> {
-    const tokenHashValue = hashToken(dto.token);
-    const expectedType = expectedUserTypeForSurface(surface);
-
-    const [record] = await this.db
-      .select({
-        tokenId: authTokens.id,
-        userId: users.id,
-        userType: users.userType,
-      })
-      .from(authTokens)
-      .innerJoin(users, eq(authTokens.userId, users.id))
-      .where(
-        and(
-          eq(authTokens.tokenHash, tokenHashValue),
-          eq(authTokens.purpose, 'password_reset'),
-          isNull(authTokens.usedAt),
-          gt(authTokens.expiresAt, new Date()),
-          isNull(users.deletedAt),
-        ),
-      );
-
-    if (!record || record.userType !== expectedType) {
-      throw new BadRequestException({
-        code: 'INVALID_RESET_TOKEN',
-        message: 'Password reset link is invalid or expired',
-      });
-    }
-
-    const passwordHash = await argon2.hash(dto.password, {
-      type: argon2.argon2id,
-      memoryCost: 65536,
-      timeCost: 3,
-      parallelism: 1,
-    });
-
-    await this.db.transaction(async (tx) => {
-      await tx
-        .update(users)
-        .set({
-          passwordHash,
-          tokenVersion: sql`${users.tokenVersion} + 1`,
-          updatedAt: new Date(),
-        })
-        .where(eq(users.id, record.userId));
-
-      await tx
-        .update(authTokens)
-        .set({ usedAt: new Date() })
-        .where(eq(authTokens.id, record.tokenId));
-
-      await this.auditService.record(
-        {
-          actorUserId: record.userId,
-          actorType: expectedType,
-          action: 'auth.password_reset',
-          entityType: 'user',
-          entityId: record.userId,
-          summary: `Completed password reset via ${surface}`,
-          meta,
-        },
-        tx,
-      );
-    });
-
-    await this.authStateService.invalidateUser(record.userId);
-  }
-
-  async acceptInvite(
-    surface: AppSurface,
-    dto: AcceptInviteInput,
-    meta: RequestMetadata,
-  ): Promise<{ email: string }> {
-    const tokenHashValue = hashToken(dto.token);
-    const expectedType = expectedUserTypeForSurface(surface);
-
-    const [record] = await this.db
-      .select({
-        tokenId: authTokens.id,
-        userId: users.id,
-        email: users.email,
-        fullName: users.fullName,
-        userType: users.userType,
-        status: users.status,
-      })
-      .from(authTokens)
-      .innerJoin(users, eq(authTokens.userId, users.id))
-      .where(
-        and(
-          eq(authTokens.tokenHash, tokenHashValue),
-          eq(authTokens.purpose, 'invite'),
-          isNull(authTokens.usedAt),
-          gt(authTokens.expiresAt, new Date()),
-          isNull(users.deletedAt),
-        ),
-      );
-
-    if (!record || record.userType !== expectedType) {
-      throw new BadRequestException({
-        code: 'INVALID_INVITE_TOKEN',
-        message: 'Invitation link is invalid or expired',
-      });
-    }
-
-    const passwordHash = await argon2.hash(dto.password, {
-      type: argon2.argon2id,
-      memoryCost: 65536,
-      timeCost: 3,
-      parallelism: 1,
-    });
-
-    await this.db.transaction(async (tx) => {
-      await tx
-        .update(users)
-        .set({
-          passwordHash,
-          fullName: dto.fullName ?? record.fullName,
-          phone: dto.phone ?? null,
-          timezone: dto.timezone,
-          locale: dto.locale,
-          status: 'active',
-          updatedAt: new Date(),
-        })
-        .where(eq(users.id, record.userId));
-
-      if (expectedType === 'customer') {
-        await tx
-          .update(customerMembers)
-          .set({ joinedAt: new Date(), updatedAt: new Date() })
-          .where(eq(customerMembers.userId, record.userId));
-      }
-
-      await tx
-        .update(authTokens)
-        .set({ usedAt: new Date() })
-        .where(eq(authTokens.id, record.tokenId));
-
-      await this.auditService.record(
-        {
-          actorUserId: record.userId,
-          actorType: expectedType,
-          action: 'user.invite_accepted',
-          entityType: 'user',
-          entityId: record.userId,
-          summary: `Accepted ${surface} invitation and activated account`,
-          meta,
-        },
-        tx,
-      );
-    });
-
-    await this.authStateService.invalidateUser(record.userId);
-    return { email: record.email };
-  }
-
   async updateProfile(
     actor: AuthenticatedActor,
     dto: UpdateProfileInput,
@@ -574,7 +387,6 @@ export class AuthService {
       .update(users)
       .set({
         ...(dto.fullName !== undefined ? { fullName: dto.fullName } : {}),
-        ...(dto.phone !== undefined ? { phone: dto.phone } : {}),
         ...(dto.timezone !== undefined ? { timezone: dto.timezone } : {}),
         ...(dto.locale !== undefined ? { locale: dto.locale } : {}),
         updatedAt: new Date(),
@@ -599,73 +411,5 @@ export class AuthService {
       throw new UnauthorizedException();
     }
     return updated;
-  }
-
-  async changePassword(
-    actor: AuthenticatedActor,
-    dto: ChangePasswordInput,
-    res: Response,
-    meta: RequestMetadata,
-  ): Promise<void> {
-    const [user] = await this.db.select().from(users).where(eq(users.id, actor.id));
-    if (!user || !user.passwordHash) {
-      throw new UnauthorizedException();
-    }
-
-    const valid = await argon2.verify(user.passwordHash, dto.currentPassword);
-    if (!valid) {
-      throw new BadRequestException({
-        code: 'INCORRECT_PASSWORD',
-        message: 'Current password is incorrect',
-      });
-    }
-
-    const nextHash = await argon2.hash(dto.newPassword, {
-      type: argon2.argon2id,
-      memoryCost: 65536,
-      timeCost: 3,
-      parallelism: 1,
-    });
-
-    const [updatedUser] = await this.db
-      .update(users)
-      .set({
-        passwordHash: nextHash,
-        tokenVersion: sql`${users.tokenVersion} + 1`,
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, actor.id))
-      .returning();
-
-    await this.authStateService.invalidateUser(actor.id);
-    if (updatedUser) {
-      await this.issueCookiesForUser(res, actor.surface, {
-        id: updatedUser.id,
-        userType: updatedUser.userType,
-        tokenVersion: updatedUser.tokenVersion,
-      });
-    }
-
-    await this.auditService.record({
-      actorUserId: actor.id,
-      actorType: actor.userType,
-      customerId: actor.customerId,
-      action: 'profile.password_changed',
-      entityType: 'user',
-      entityId: actor.id,
-      summary: 'Changed account password',
-      meta,
-    });
-  }
-
-  async createInviteToken(userId: string): Promise<string> {
-    const rawToken = generateOpaqueToken();
-    await this.db.insert(authTokens).values({
-      userId,
-      purpose: 'invite',
-      tokenHash: hashToken(rawToken),
-      expiresAt: new Date(Date.now() + 72 * 60 * 60 * 1000),
-    });
-    return rawToken;
   }
 }

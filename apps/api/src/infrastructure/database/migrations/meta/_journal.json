@@ -15,6 +15,20 @@
       "when": 1795616066377,
       "tag": "0001_blushing_ink",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795688324856,
+      "tag": "0002_sso_otp_identities",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795688492321,
+      "tag": "0003_drop_legacy_auth_tokens",
+      "breakpoints": true
     }
   ]
 }

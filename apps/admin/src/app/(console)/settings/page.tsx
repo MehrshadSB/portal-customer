@@ -4,11 +4,14 @@ import { useI18n } from '@portal/i18n/react';
 import {
   PERMISSIONS,
   SUPPORTED_LOCALES,
+  WORKFLOW_COLOR_TOKENS,
   type AppLocale,
   type CalendarType,
   type LocalizationSettingsDto,
   type PermissionDto,
   type RoleDto,
+  type WorkflowDto,
+  type WorkflowStatusDto,
 } from '@portal/types';
 import {
   AlertBanner,
@@ -37,6 +40,7 @@ export default function AdminSettingsPage() {
 
   const canManageLocalization = hasPermission(PERMISSIONS.SYSTEM_SETTINGS_MANAGE);
   const canManageRbac = hasPermission(PERMISSIONS.ROLE_PERMISSION_MANAGE);
+  const canManageWorkflows = hasPermission(PERMISSIONS.WORKFLOW_CONFIGURE);
 
   const [selectedRoleId, setSelectedRoleId] = React.useState<string>('');
   const [draftKeys, setDraftKeys] = React.useState<Set<string>>(new Set());
@@ -77,6 +81,37 @@ export default function AdminSettingsPage() {
     queryKey: ['admin', 'permissions'],
     queryFn: async () => (await adminApi.get<PermissionDto[]>('/permissions')).data,
     enabled: canManageRbac,
+  });
+
+  const workflowsQuery = useQuery({
+    queryKey: ['admin', 'workflows'],
+    queryFn: async () => (await adminApi.get<WorkflowDto[]>('/workflows')).data,
+    enabled: canManageWorkflows,
+  });
+
+  const [workflowFeedback, setWorkflowFeedback] = React.useState<string | null>(null);
+
+  const updateStageMutation = useMutation({
+    mutationFn: (st: WorkflowStatusDto) =>
+      adminApi.patch<WorkflowStatusDto>(`/workflows/statuses/${st.id}`, {
+        name: st.name,
+        customerLabel: st.customerLabel,
+        description: st.description,
+        colorToken: st.colorToken,
+        isCustomerVisible: st.isCustomerVisible,
+        isTerminal: st.isTerminal,
+        defaultDepartmentId: st.defaultDepartmentId,
+      }),
+    onSuccess: async () => {
+      setErrorMsg(null);
+      setWorkflowFeedback(t.admin.settings.workflowSaved);
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'workflows'] });
+    },
+    onError: (err) => {
+      const code =
+        typeof err === 'object' && err !== null && 'code' in err ? String(err.code) : undefined;
+      setErrorMsg(translateError(code, err instanceof Error ? err.message : 'Unable to save stage'));
+    },
   });
 
   const roles = React.useMemo(() => rolesQuery.data ?? [], [rolesQuery.data]);
@@ -366,6 +401,113 @@ export default function AdminSettingsPage() {
           </div>
         </>
       ) : null}
+
+      {canManageWorkflows ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t.admin.settings.workflowsTitle}</CardTitle>
+            <CardDescription>{t.admin.settings.workflowsDesc}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {workflowFeedback ? <AlertBanner tone="emerald">{workflowFeedback}</AlertBanner> : null}
+            {workflowsQuery.data?.map((wf) => (
+              <div key={wf.id} className="space-y-3">
+                <p className="text-xs font-semibold text-[var(--ink-primary)]">{wf.name}</p>
+                <div className="divide-y divide-[var(--border-hairline)] rounded-md border border-[var(--border-hairline)]">
+                  {wf.statuses.map((st) => (
+                    <WorkflowStageRow
+                      key={st.id}
+                      stage={st}
+                      isSaving={updateStageMutation.isPending}
+                      onSave={(next) => updateStageMutation.mutate(next)}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
+    </div>
+  );
+}
+
+function WorkflowStageRow({
+  stage,
+  isSaving,
+  onSave,
+}: {
+  stage: WorkflowStatusDto;
+  isSaving: boolean;
+  onSave: (next: WorkflowStatusDto) => void;
+}) {
+  const { t, formatNumber } = useI18n();
+  const [name, setName] = React.useState(stage.name);
+  const [customerLabel, setCustomerLabel] = React.useState(stage.customerLabel ?? '');
+  const [colorToken, setColorToken] = React.useState(stage.colorToken);
+  const [isCustomerVisible, setIsCustomerVisible] = React.useState(stage.isCustomerVisible);
+
+  return (
+    <div className="grid items-end gap-3 p-3 text-xs md:grid-cols-6">
+      <div>
+        <span className="font-mono-tabular text-[11px] text-[var(--ink-muted)]">
+          {t.admin.settings.stageOrderLabel} #{formatNumber(stage.sortOrder)}
+        </span>
+        <p dir="ltr" className="font-mono-tabular font-medium">
+          {stage.code}
+        </p>
+      </div>
+      <div className="space-y-1">
+        <Label>{t.common.role}</Label>
+        <Input value={name} onChange={(e) => setName(e.target.value)} />
+      </div>
+      <div className="space-y-1">
+        <Label>{t.admin.settings.customerLabelField}</Label>
+        <Input value={customerLabel} onChange={(e) => setCustomerLabel(e.target.value)} />
+      </div>
+      <div className="space-y-1">
+        <Label>{t.common.status}</Label>
+        <Select
+          value={colorToken}
+          onChange={(e) =>
+            setColorToken(e.target.value as (typeof WORKFLOW_COLOR_TOKENS)[number])
+          }
+        >
+          {WORKFLOW_COLOR_TOKENS.map((token) => (
+            <option key={token} value={token}>
+              {token}
+            </option>
+          ))}
+        </Select>
+      </div>
+      <label className="flex items-center gap-2 pb-2">
+        <input
+          type="checkbox"
+          checked={isCustomerVisible}
+          onChange={(e) => setIsCustomerVisible(e.target.checked)}
+          className="accent-[var(--accent-cobalt)]"
+        />
+        <span>{t.admin.settings.customerVisibleField}</span>
+      </label>
+      <div className="flex justify-end">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={isSaving}
+          onClick={() =>
+            onSave({
+              ...stage,
+              name,
+              customerLabel: customerLabel || null,
+              colorToken,
+              isCustomerVisible,
+            })
+          }
+        >
+          {t.common.save}
+        </Button>
+      </div>
     </div>
   );
 }

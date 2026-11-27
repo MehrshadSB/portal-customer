@@ -29,10 +29,10 @@ import {
 } from '@portal/ui';
 import {
   createContactSchema,
-  inviteCustomerMemberSchema,
+  createCustomerMemberSchema,
   updateCustomerSchema,
   type CreateContactInput,
-  type InviteCustomerMemberInput,
+  type CreateCustomerMemberInput,
   type UpdateCustomerInput,
 } from '@portal/validators';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -51,7 +51,7 @@ export default function AdminCustomerDetailPage() {
   const { t, translateError, translateRole, translateStatus } = useI18n();
   const queryClient = useQueryClient();
 
-  const [inviteOpen, setInviteOpen] = React.useState(false);
+  const [createMemberOpen, setCreateMemberOpen] = React.useState(false);
   const [contactOpen, setContactOpen] = React.useState(false);
   const [statusMsg, setStatusMsg] = React.useState<string | null>(null);
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
@@ -100,8 +100,8 @@ export default function AdminCustomerDetailPage() {
       : undefined,
   });
 
-  const inviteForm = useForm({
-    resolver: zodResolver(inviteCustomerMemberSchema),
+  const memberForm = useForm({
+    resolver: zodResolver(createCustomerMemberSchema),
     defaultValues: { roleSlug: 'customer_member', isPrimary: false },
   });
 
@@ -111,7 +111,8 @@ export default function AdminCustomerDetailPage() {
   });
 
   const extractErr = (err: unknown, fallback: string) => {
-    const code = typeof err === 'object' && err !== null && 'code' in err ? String(err.code) : undefined;
+    const code =
+      typeof err === 'object' && err !== null && 'code' in err ? String(err.code) : undefined;
     return translateError(code, err instanceof Error ? err.message : fallback);
   };
 
@@ -129,18 +130,19 @@ export default function AdminCustomerDetailPage() {
     onError: (err) => setErrorMsg(extractErr(err, 'Update failed')),
   });
 
-  const inviteMember = useMutation({
-    mutationFn: (body: InviteCustomerMemberInput) =>
-      adminApi.post<CustomerMemberDto>(`/customers/${customerId}/members/invite`, body),
+  const createMember = useMutation({
+    mutationFn: (body: CreateCustomerMemberInput) =>
+      adminApi.post<CustomerMemberDto>(`/customers/${customerId}/members`, body),
     onSuccess: async () => {
       setErrorMsg(null);
-      setInviteOpen(false);
-      inviteForm.reset({ roleSlug: 'customer_member', isPrimary: false });
+      setStatusMsg(t.admin.customers.profileCreatedNotice);
+      setCreateMemberOpen(false);
+      memberForm.reset({ roleSlug: 'customer_member', isPrimary: false });
       await queryClient.invalidateQueries({
         queryKey: ['admin', 'customer', customerId, 'members'],
       });
     },
-    onError: (err) => setErrorMsg(extractErr(err, 'Invite failed')),
+    onError: (err) => setErrorMsg(extractErr(err, 'Unable to create customer profile')),
   });
 
   const toggleMember = useMutation({
@@ -188,7 +190,7 @@ export default function AdminCustomerDetailPage() {
         title={customer?.companyName ?? t.common.loading}
         description={t.admin.customers.description}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Link
               href="/customers"
               className="rounded-md border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-3 py-1.5 text-xs font-medium hover:bg-[var(--bg-subtle)]"
@@ -202,9 +204,9 @@ export default function AdminCustomerDetailPage() {
               </Button>
             ) : null}
             {canManageMembers ? (
-              <Button size="sm" onClick={() => setInviteOpen(true)}>
+              <Button size="sm" onClick={() => setCreateMemberOpen(true)}>
                 <UserPlus className="h-3.5 w-3.5" />
-                {t.admin.customers.invitePortalUser}
+                {t.admin.customers.createPortalUser}
               </Button>
             ) : null}
           </div>
@@ -227,16 +229,28 @@ export default function AdminCustomerDetailPage() {
             >
               <div className="space-y-1">
                 <Label htmlFor="c360-name">{t.admin.customers.companyName}</Label>
-                <Input id="c360-name" disabled={!canEditCustomer} {...updateForm.register('companyName')} />
+                <Input
+                  id="c360-name"
+                  disabled={!canEditCustomer}
+                  {...updateForm.register('companyName')}
+                />
               </div>
               <div className="space-y-1">
                 <Label htmlFor="c360-legal">{t.admin.customers.legalName}</Label>
-                <Input id="c360-legal" disabled={!canEditCustomer} {...updateForm.register('legalName')} />
+                <Input
+                  id="c360-legal"
+                  disabled={!canEditCustomer}
+                  {...updateForm.register('legalName')}
+                />
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
                 <div className="space-y-1">
                   <Label htmlFor="c360-status">{t.common.status}</Label>
-                  <Select id="c360-status" disabled={!canEditCustomer} {...updateForm.register('status')}>
+                  <Select
+                    id="c360-status"
+                    disabled={!canEditCustomer}
+                    {...updateForm.register('status')}
+                  >
                     {CUSTOMER_STATUSES.map((s) => (
                       <option key={s} value={s}>
                         {translateStatus(s)}
@@ -246,7 +260,11 @@ export default function AdminCustomerDetailPage() {
                 </div>
                 <div className="space-y-1">
                   <Label htmlFor="c360-industry">{t.admin.customers.colIndustry}</Label>
-                  <Input id="c360-industry" disabled={!canEditCustomer} {...updateForm.register('industry')} />
+                  <Input
+                    id="c360-industry"
+                    disabled={!canEditCustomer}
+                    {...updateForm.register('industry')}
+                  />
                 </div>
               </div>
               <div className="space-y-1">
@@ -293,18 +311,30 @@ export default function AdminCustomerDetailPage() {
                   <thead>
                     <tr className="border-b border-[var(--border-hairline)] text-[var(--ink-muted)]">
                       <th className="py-2 pe-4 font-medium">{t.common.fullName}</th>
+                      <th className="py-2 pe-4 font-medium">{t.common.phone}</th>
                       <th className="py-2 pe-4 font-medium">{t.common.email}</th>
                       <th className="py-2 pe-4 font-medium">{t.common.role}</th>
                       <th className="py-2 pe-4 font-medium">{t.common.status}</th>
-                      {canManageMembers ? <th className="py-2 text-end font-medium">{t.common.actions}</th> : null}
+                      {canManageMembers ? (
+                        <th className="py-2 text-end font-medium">{t.common.actions}</th>
+                      ) : null}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--border-hairline)]">
                     {membersQuery.data?.map((m) => (
                       <tr key={m.id}>
                         <td className="py-2.5 pe-4 font-medium">{m.fullName}</td>
-                        <td dir="ltr" className="font-mono-tabular py-2.5 pe-4 text-start text-[var(--ink-muted)]">
-                          {m.email}
+                        <td
+                          dir="ltr"
+                          className="font-mono-tabular py-2.5 pe-4 text-start text-[var(--ink-muted)]"
+                        >
+                          {m.phone ?? '—'}
+                        </td>
+                        <td
+                          dir="ltr"
+                          className="font-mono-tabular py-2.5 pe-4 text-start text-[var(--ink-muted)]"
+                        >
+                          {m.email ?? '—'}
                         </td>
                         <td className="py-2.5 pe-4">
                           <StatusBadge label={translateRole(m.roleSlug)} tone="cobalt" />
@@ -312,40 +342,30 @@ export default function AdminCustomerDetailPage() {
                         <td className="py-2.5 pe-4">
                           <StatusBadge
                             label={translateStatus(m.userStatus)}
-                            tone={
-                              m.userStatus === 'active'
-                                ? 'emerald'
-                                : m.userStatus === 'invited'
-                                  ? 'amber'
-                                  : 'crimson'
-                            }
+                            tone={m.userStatus === 'active' ? 'emerald' : 'crimson'}
                           />
                         </td>
                         {canManageMembers ? (
                           <td className="py-2.5 text-end">
-                            {m.userStatus !== 'invited' ? (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() =>
-                                  toggleMember.mutate({
-                                    id: m.id,
-                                    status: m.userStatus === 'active' ? 'suspended' : 'active',
-                                  })
-                                }
-                              >
-                                {m.userStatus === 'active' ? t.common.suspend : t.common.activate}
-                              </Button>
-                            ) : (
-                              <span className="text-[var(--ink-muted)]">{t.admin.customers.pendingInvite}</span>
-                            )}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                toggleMember.mutate({
+                                  id: m.id,
+                                  status: m.userStatus === 'active' ? 'suspended' : 'active',
+                                })
+                              }
+                            >
+                              {m.userStatus === 'active' ? t.common.suspend : t.common.activate}
+                            </Button>
                           </td>
                         ) : null}
                       </tr>
                     ))}
                     {(membersQuery.data?.length ?? 0) === 0 ? (
                       <tr>
-                        <td colSpan={5} className="py-4 text-[var(--ink-muted)]">
+                        <td colSpan={6} className="py-4 text-[var(--ink-muted)]">
                           {t.admin.customers.noMembers}
                         </td>
                       </tr>
@@ -371,7 +391,10 @@ export default function AdminCustomerDetailPage() {
                         <span className="font-normal text-[var(--ink-muted)]">· {c.jobTitle}</span>
                       ) : null}
                     </p>
-                    <p dir="ltr" className="font-mono-tabular text-start text-[11px] text-[var(--ink-muted)]">
+                    <p
+                      dir="ltr"
+                      className="font-mono-tabular text-start text-[11px] text-[var(--ink-muted)]"
+                    >
                       {[c.email, c.phone, c.departmentLabel].filter(Boolean).join(' · ') || '—'}
                     </p>
                   </div>
@@ -388,7 +411,9 @@ export default function AdminCustomerDetailPage() {
                 </div>
               ))}
               {(contactsQuery.data?.length ?? 0) === 0 ? (
-                <p className="py-3 text-xs text-[var(--ink-muted)]">{t.admin.customers.noContacts}</p>
+                <p className="py-3 text-xs text-[var(--ink-muted)]">
+                  {t.admin.customers.noContacts}
+                </p>
               ) : null}
             </CardContent>
           </Card>
@@ -396,43 +421,74 @@ export default function AdminCustomerDetailPage() {
       </div>
 
       <ModalDialog
-        open={inviteOpen}
-        onClose={() => setInviteOpen(false)}
-        title={t.admin.customers.inviteModalTitle}
-        description={t.admin.customers.inviteModalDesc}
+        open={createMemberOpen}
+        onClose={() => setCreateMemberOpen(false)}
+        title={t.admin.customers.createMemberModalTitle}
+        description={t.admin.customers.createMemberModalDesc}
       >
         <form
-          onSubmit={inviteForm.handleSubmit((v) => inviteMember.mutate(v))}
+          onSubmit={memberForm.handleSubmit((v) => createMember.mutate(v))}
           className="space-y-4"
         >
           <div className="space-y-1.5">
             <Label htmlFor="m-name">{t.common.fullName}</Label>
-            <Input id="m-name" {...inviteForm.register('fullName')} />
+            <Input id="m-name" {...memberForm.register('fullName')} />
+            {memberForm.formState.errors.fullName ? (
+              <p className="text-xs text-[var(--signal-crimson)]">
+                {memberForm.formState.errors.fullName.message}
+              </p>
+            ) : null}
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="m-email">{t.common.email}</Label>
-            <Input id="m-email" type="email" dir="ltr" {...inviteForm.register('email')} />
+            <Label htmlFor="m-phone">{t.common.phone}</Label>
+            <Input
+              id="m-phone"
+              type="tel"
+              dir="ltr"
+              placeholder="+989123456789"
+              {...memberForm.register('phone')}
+            />
+            {memberForm.formState.errors.phone ? (
+              <p className="text-xs text-[var(--signal-crimson)]">
+                {memberForm.formState.errors.phone.message}
+              </p>
+            ) : null}
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="m-role">{t.admin.customers.portalRole}</Label>
-            <Select id="m-role" {...inviteForm.register('roleSlug')}>
-              {CUSTOMER_ROLE_SLUGS.map((slug) => (
-                <option key={slug} value={slug}>
-                  {translateRole(slug)}
-                </option>
-              ))}
-            </Select>
+            <Label htmlFor="m-email">
+              {t.common.email} ({t.common.optional})
+            </Label>
+            <Input id="m-email" type="email" dir="ltr" {...memberForm.register('email')} />
+            {memberForm.formState.errors.email ? (
+              <p className="text-xs text-[var(--signal-crimson)]">
+                {memberForm.formState.errors.email.message}
+              </p>
+            ) : null}
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="m-title">{t.common.jobTitle}</Label>
-            <Input id="m-title" {...inviteForm.register('jobTitle')} />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="m-role">{t.admin.customers.portalRole}</Label>
+              <Select id="m-role" {...memberForm.register('roleSlug')}>
+                {CUSTOMER_ROLE_SLUGS.map((slug) => (
+                  <option key={slug} value={slug}>
+                    {translateRole(slug)}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="m-title">{t.common.jobTitle}</Label>
+              <Input id="m-title" {...memberForm.register('jobTitle')} />
+            </div>
           </div>
           <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={() => setInviteOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setCreateMemberOpen(false)}>
               {t.common.cancel}
             </Button>
-            <Button type="submit" disabled={inviteMember.isPending}>
-              {t.admin.customers.sendPortalInvite}
+            <Button type="submit" disabled={createMember.isPending}>
+              {createMember.isPending
+                ? t.common.creating
+                : t.admin.customers.createProfileSubmit}
             </Button>
           </div>
         </form>

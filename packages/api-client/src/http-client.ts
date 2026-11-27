@@ -35,7 +35,22 @@ function readCookie(name: string): string | null {
   return match?.[1] ? decodeURIComponent(match[1]) : null;
 }
 
-const SKIP_REFRESH_PATHS = ['/login', '/refresh', '/forgot-password', '/reset-password', '/accept-invite'];
+const SKIP_REFRESH_PATHS = ['/otp/request', '/otp/verify', '/sso', '/refresh'];
+
+export async function uploadToPresignedUrl(
+  uploadUrl: string,
+  file: Blob,
+  headers: Record<string, string> = {},
+): Promise<void> {
+  const res = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers,
+    body: file,
+  });
+  if (!res.ok) {
+    throw new ApiClientError(res.status, `Storage upload failed (${res.status})`, 'S3_UPLOAD_FAILED');
+  }
+}
 
 export function createApiClient(config: ApiClientConfig) {
   const baseUrl = config.baseUrl ?? '/api/v1';
@@ -47,6 +62,9 @@ export function createApiClient(config: ApiClientConfig) {
     refreshInFlight = (async () => {
       try {
         const csrfToken = readCookie(`${config.surface}_csrf_token`);
+        if (!csrfToken) {
+          return false;
+        }
         const res = await fetch(`${baseUrl}/auth/${config.surface}/refresh`, {
           method: 'POST',
           credentials: 'include',

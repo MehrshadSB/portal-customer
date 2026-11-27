@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 const DEV_JWT_FALLBACK = 'dev_only_replace_with_64_char_random_secret_for_jwt_signing_0123456789';
+const DEV_OTP_HMAC_FALLBACK = 'dev_only_replace_with_64_char_otp_hmac_secret_for_otp_hashing_0123';
 
 export const envSchema = z
   .object({
@@ -22,6 +23,26 @@ export const envSchema = z
       .enum(['true', 'false'])
       .default('false')
       .transform((v) => v === 'true'),
+
+    // OIDC SSO Configuration
+    OIDC_ENABLED: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((v) => v === 'true'),
+    OIDC_ISSUER_URL: z.string().url().optional().or(z.literal('')),
+    OIDC_CLIENT_ID: z.string().optional().or(z.literal('')),
+    OIDC_CLIENT_SECRET: z.string().optional().or(z.literal('')),
+    OIDC_SCOPES: z.string().default('openid profile email'),
+    OIDC_PROVIDER_LABEL: z.string().default('Company SSO'),
+
+    // SMS OTP Configuration
+    SMS_PROVIDER: z.enum(['console', 'webhook', 'kavenegar']).default('console'),
+    SMS_WEBHOOK_URL: z.string().url().optional().or(z.literal('')),
+    SMS_API_KEY: z.string().optional().or(z.literal('')),
+    SMS_TEMPLATE: z.string().default('verify'),
+    OTP_TTL_SECONDS: z.coerce.number().int().min(60).max(600).default(180),
+    OTP_RESEND_COOLDOWN_SECONDS: z.coerce.number().int().min(15).max(300).default(60),
+    OTP_HMAC_SECRET: z.string().min(32).default(DEV_OTP_HMAC_FALLBACK),
 
     S3_ENDPOINT: z.string().url().default('http://localhost:9010'),
     S3_REGION: z.string().min(1).default('us-east-1'),
@@ -51,6 +72,38 @@ export const envSchema = z
     SWAGGER_ENABLED: env.SWAGGER_ENABLED ?? env.NODE_ENV !== 'production',
   }))
   .superRefine((env, ctx) => {
+    if (env.OIDC_ENABLED) {
+      if (!env.OIDC_ISSUER_URL) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['OIDC_ISSUER_URL'],
+          message: 'OIDC_ISSUER_URL is required when OIDC_ENABLED=true',
+        });
+      }
+      if (!env.OIDC_CLIENT_ID) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['OIDC_CLIENT_ID'],
+          message: 'OIDC_CLIENT_ID is required when OIDC_ENABLED=true',
+        });
+      }
+    }
+
+    if (env.SMS_PROVIDER === 'webhook' && !env.SMS_WEBHOOK_URL) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['SMS_WEBHOOK_URL'],
+        message: 'SMS_WEBHOOK_URL is required when SMS_PROVIDER=webhook',
+      });
+    }
+    if (env.SMS_PROVIDER === 'kavenegar' && !env.SMS_API_KEY) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['SMS_API_KEY'],
+        message: 'SMS_API_KEY is required when SMS_PROVIDER=kavenegar',
+      });
+    }
+
     if (env.NODE_ENV !== 'production') return;
 
     if (env.JWT_ACCESS_SECRET === DEV_JWT_FALLBACK) {
@@ -58,6 +111,13 @@ export const envSchema = z
         code: z.ZodIssueCode.custom,
         path: ['JWT_ACCESS_SECRET'],
         message: 'Production requires a dedicated JWT_ACCESS_SECRET',
+      });
+    }
+    if (env.OTP_HMAC_SECRET === DEV_OTP_HMAC_FALLBACK) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['OTP_HMAC_SECRET'],
+        message: 'Production requires a dedicated OTP_HMAC_SECRET',
       });
     }
     if (!env.COOKIE_SECURE) {

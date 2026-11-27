@@ -1,7 +1,6 @@
 import { PERMISSIONS } from '@portal/types';
-import * as argon2 from 'argon2';
 import { config } from 'dotenv';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, notInArray, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { resolve } from 'node:path';
 import { Pool } from 'pg';
@@ -126,11 +125,10 @@ const ROLE_DEFINITIONS = [
     slug: 'customer_admin',
     name: 'Customer Company Admin',
     scope: 'customer' as const,
-    description: 'Full customer portal access plus managing members and contacts within own company',
+    description: 'Full customer portal access for company orders, tickets, documents, and contacts',
     permissions: [
       PERMISSIONS.CUSTOMER_READ_OWN,
       PERMISSIONS.CUSTOMER_UPDATE_OWN,
-      PERMISSIONS.CUSTOMER_MEMBER_MANAGE_OWN,
       PERMISSIONS.CONTACT_MANAGE_OWN,
       PERMISSIONS.ORDER_READ_COMPANY,
       PERMISSIONS.TICKET_READ_COMPANY,
@@ -231,7 +229,16 @@ async function runSeed(): Promise<void> {
         .filter((pid): pid is string => Boolean(pid))
         .map((permissionId) => ({ roleId: role.id, permissionId }));
 
-      if (mappings.length > 0) {
+      const desiredPermissionIds = mappings.map((m) => m.permissionId);
+      if (desiredPermissionIds.length > 0) {
+        await db
+          .delete(schema.rolePermissions)
+          .where(
+            and(
+              eq(schema.rolePermissions.roleId, role.id),
+              notInArray(schema.rolePermissions.permissionId, desiredPermissionIds),
+            ),
+          );
         await db.insert(schema.rolePermissions).values(mappings).onConflictDoNothing();
       }
     }
@@ -353,6 +360,37 @@ async function runSeed(): Promise<void> {
         },
       ];
       await db.insert(schema.orderWorkflowStatuses).values(statuses).onConflictDoNothing();
+
+      // Seed valid stage transitions (linear progression + skipping optional internal review + QC rework)
+      const wfStatuses = await db
+        .select()
+        .from(schema.orderWorkflowStatuses)
+        .where(eq(schema.orderWorkflowStatuses.workflowId, defaultWorkflow.id));
+      const statusIdByCode = new Map(wfStatuses.map((s) => [s.code, s.id]));
+      const transitionPairs: Array<[string, string]> = [
+        ['order_received', 'technical_review'],
+        ['order_received', 'approved'],
+        ['technical_review', 'approved'],
+        ['approved', 'in_production'],
+        ['in_production', 'quality_control'],
+        ['quality_control', 'in_production'],
+        ['quality_control', 'ready_for_delivery'],
+        ['ready_for_delivery', 'delivered'],
+      ];
+      const transitionRows = transitionPairs
+        .map(([fromCode, toCode]) => {
+          const fromStatusId = statusIdByCode.get(fromCode);
+          const toStatusId = statusIdByCode.get(toCode);
+          return fromStatusId && toStatusId
+            ? { workflowId: defaultWorkflow.id, fromStatusId, toStatusId }
+            : null;
+        })
+        .filter((row): row is { workflowId: string; fromStatusId: string; toStatusId: string } =>
+          Boolean(row),
+        );
+      if (transitionRows.length > 0) {
+        await db.insert(schema.orderWorkflowTransitions).values(transitionRows).onConflictDoNothing();
+      }
     }
 
     // 5. Seed ticket categories
@@ -373,22 +411,15 @@ async function runSeed(): Promise<void> {
       .where(sql`lower(${schema.users.email}) = 'admin@platform.local'`);
 
     if (existingAdmin.length === 0) {
-      const devPasswordHash = await argon2.hash('DevPassword123!', {
-        type: argon2.argon2id,
-        memoryCost: 65536,
-        timeCost: 3,
-        parallelism: 1,
-      });
-
       const allRoles = await db.select().from(schema.roles);
       const roleBySlug = new Map(allRoles.map((r) => [r.slug, r.id]));
 
-      // Create employee accounts
+      // Create employee accounts (passwordless: SMS OTP / OIDC SSO)
       const [adminUser] = await db
         .insert(schema.users)
         .values({
           email: 'admin@platform.local',
-          passwordHash: devPasswordHash,
+          phone: '+989120000001',
           fullName: 'Elena Vance',
           userType: 'employee',
           status: 'active',
@@ -399,7 +430,7 @@ async function runSeed(): Promise<void> {
         .insert(schema.users)
         .values({
           email: 'orders@platform.local',
-          passwordHash: devPasswordHash,
+          phone: '+989120000002',
           fullName: 'Marcus Thorne',
           userType: 'employee',
           status: 'active',
@@ -410,7 +441,7 @@ async function runSeed(): Promise<void> {
         .insert(schema.users)
         .values({
           email: 'support@platform.local',
-          passwordHash: devPasswordHash,
+          phone: '+989120000003',
           fullName: 'Nadia Chen',
           userType: 'employee',
           status: 'active',
@@ -491,7 +522,7 @@ async function runSeed(): Promise<void> {
           .insert(schema.users)
           .values({
             email: 'buyer@apex-aero.local',
-            passwordHash: devPasswordHash,
+            phone: '+989120000004',
             fullName: 'Daniel Mercer',
             userType: 'customer',
             status: 'active',
@@ -663,6 +694,19 @@ async function runSeed(): Promise<void> {
             }
           }
         }
+      }
+    } else {
+      const seedPhonesByEmail: Array<[string, string]> = [
+        ['admin@platform.local', '+989120000001'],
+        ['orders@platform.local', '+989120000002'],
+        ['support@platform.local', '+989120000003'],
+        ['buyer@apex-aero.local', '+989120000004'],
+      ];
+      for (const [email, phone] of seedPhonesByEmail) {
+        await db
+          .update(schema.users)
+          .set({ phone })
+          .where(and(sql`lower(${schema.users.email}) = ${email}`, isNull(schema.users.phone)));
       }
     }
 

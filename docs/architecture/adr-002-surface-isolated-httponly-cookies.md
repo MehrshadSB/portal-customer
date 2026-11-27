@@ -27,3 +27,8 @@ Eliminates cross-surface session hijacking and `localhost` cookie clobbering whi
 
 ## Revisit Trigger
 Revisit if external OAuth2/SSO machine clients require third-party OAuth bearer tokens; add a dedicated client-credentials API gateway without weakening browser cookie isolation.
+
+## Amendment (2026-11-26): Passwordless OIDC SSO + Mobile SMS OTP & Admin Provisioning
+- Password-based authentication (`Argon2id` passwords, `/login`, `/forgot-password`, `/reset-password`, password-based `/accept-invite`) is removed across both `portal` and `admin` surfaces.
+- First-factor authentication is performed exclusively via **OIDC SSO (Authorization Code + PKCE)** or **Mobile Phone SMS OTP** for pre-provisioned active profiles only (`403 PROFILE_NOT_PROVISIONED` for unprovisioned identities/phones).
+- Upon OIDC callback or OTP verification, `apps/api` issues the exact same surface-isolated `HttpOnly` cookies (`portal_*` vs `admin_*`), CSRF double-submit cookies, and Redis refresh-token families documented above.

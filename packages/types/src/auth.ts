@@ -37,7 +37,7 @@ export type RoleSlug = EmployeeRoleSlug | CustomerRoleSlug;
 
 export interface SessionUser {
   id: string;
-  email: string;
+  email: string | null;
   fullName: string;
   phone: string | null;
   timezone: string;
@@ -50,4 +50,27 @@ export interface SessionUser {
   departmentId: string | null;
   roles: string[];
   permissions: string[];
+}
+
+export interface AuthMethodsDto {
+  ssoEnabled: boolean;
+  otpEnabled: boolean;
+  providerLabel: string;
+  ssoMode?: 'oidc' | 'console';
+}
+
+export interface OtpRequestResponseDto {
+  expiresInSeconds: number;
+  resendAfterSeconds: number;
+  maskedPhone: string;
+}
+
+export interface SsoIdentityDto {
+  id: string;
+  provider: string;
+  issuer: string;
+  subject: string;
+  emailAtLink: string | null;
+  linkedAt: string;
+  lastUsedAt: string | null;
 }

@@ -16,12 +16,7 @@ import {
   PageHeader,
   Select,
 } from '@portal/ui';
-import {
-  changePasswordSchema,
-  updateProfileSchema,
-  type ChangePasswordInput,
-  type UpdateProfileInput,
-} from '@portal/validators';
+import { updateProfileSchema, type UpdateProfileInput } from '@portal/validators';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import * as React from 'react';
@@ -35,21 +30,15 @@ export default function PortalProfilePage() {
   const queryClient = useQueryClient();
   const router = useRouter();
   const [profileMsg, setProfileMsg] = React.useState<string | null>(null);
-  const [passwordMsg, setPasswordMsg] = React.useState<string | null>(null);
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
 
   const profileForm = useForm<UpdateProfileInput>({
     resolver: zodResolver(updateProfileSchema),
     values: {
       fullName: user?.fullName ?? '',
-      phone: user?.phone ?? '',
       timezone: user?.timezone ?? 'Asia/Tehran',
       locale: user?.locale ?? locale,
     },
-  });
-
-  const passwordForm = useForm<ChangePasswordInput>({
-    resolver: zodResolver(changePasswordSchema),
   });
 
   const onSaveProfile = async (values: UpdateProfileInput) => {
@@ -61,21 +50,9 @@ export default function PortalProfilePage() {
       await queryClient.invalidateQueries({ queryKey: PORTAL_SESSION_KEY });
       setProfileMsg(t.portal.profile.savedNotice);
     } catch (err) {
-      const code = typeof err === 'object' && err !== null && 'code' in err ? String(err.code) : undefined;
+      const code =
+        typeof err === 'object' && err !== null && 'code' in err ? String(err.code) : undefined;
       setErrorMsg(translateError(code, err instanceof Error ? err.message : 'Unable to save profile'));
-    }
-  };
-
-  const onChangePassword = async (values: ChangePasswordInput) => {
-    setErrorMsg(null);
-    setPasswordMsg(null);
-    try {
-      await portalApi.patch('/profile/password', values);
-      passwordForm.reset();
-      setPasswordMsg(t.portal.profile.passwordSavedNotice);
-    } catch (err) {
-      const code = typeof err === 'object' && err !== null && 'code' in err ? String(err.code) : undefined;
-      setErrorMsg(translateError(code, err instanceof Error ? err.message : 'Unable to update password'));
     }
   };
 
@@ -109,11 +86,22 @@ export default function PortalProfilePage() {
                 <Label htmlFor="fullName">{t.common.fullName}</Label>
                 <Input id="fullName" {...profileForm.register('fullName')} />
               </div>
+
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                  <Label htmlFor="phone">{t.common.phone}</Label>
-                  <Input id="phone" dir="ltr" {...profileForm.register('phone')} />
+                  <Label>{t.common.phone}</Label>
+                  <Input value={user?.phone ?? '—'} dir="ltr" disabled />
                 </div>
+                <div className="space-y-1.5">
+                  <Label>{t.common.email}</Label>
+                  <Input value={user?.email ?? '—'} dir="ltr" disabled />
+                </div>
+              </div>
+              <p className="text-[11px] text-[var(--ink-muted)]">
+                {t.portal.profile.phoneManagedNotice}
+              </p>
+
+              <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label htmlFor="profile-locale">{t.portal.profile.languageLabel}</Label>
                   <Select id="profile-locale" {...profileForm.register('locale')}>
@@ -124,11 +112,12 @@ export default function PortalProfilePage() {
                     ))}
                   </Select>
                 </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="timezone">{t.common.timezone}</Label>
+                  <Input id="timezone" dir="ltr" {...profileForm.register('timezone')} />
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="timezone">{t.common.timezone}</Label>
-                <Input id="timezone" dir="ltr" {...profileForm.register('timezone')} />
-              </div>
+
               {profileMsg ? <AlertBanner tone="emerald">{profileMsg}</AlertBanner> : null}
               <Button type="submit" disabled={profileForm.formState.isSubmitting}>
                 {t.common.save}
@@ -139,35 +128,14 @@ export default function PortalProfilePage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>{t.portal.profile.passwordCardTitle}</CardTitle>
-            <CardDescription>{t.portal.profile.passwordCardDesc}</CardDescription>
+            <CardTitle>{t.portal.profile.sessionsCardTitle}</CardTitle>
+            <CardDescription>{t.portal.profile.sessionsCardDesc}</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <form onSubmit={passwordForm.handleSubmit(onChangePassword)} className="space-y-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="currentPassword">{t.auth.currentPasswordLabel}</Label>
-                <Input
-                  id="currentPassword"
-                  type="password"
-                  dir="ltr"
-                  {...passwordForm.register('currentPassword')}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="newPassword">{t.auth.newPasswordLabel}</Label>
-                <Input id="newPassword" type="password" dir="ltr" {...passwordForm.register('newPassword')} />
-              </div>
-              {passwordMsg ? <AlertBanner tone="emerald">{passwordMsg}</AlertBanner> : null}
-              <Button type="submit" disabled={passwordForm.formState.isSubmitting}>
-                {t.auth.updatePassword}
-              </Button>
-            </form>
-
-            <div className="border-t border-[var(--border-hairline)] pt-4">
-              <Button type="button" variant="destructive" size="sm" onClick={handleLogoutAll}>
-                {t.common.signOutAll}
-              </Button>
-            </div>
+          <CardContent className="space-y-4">
+            <p className="text-xs text-[var(--ink-muted)]">{t.portal.profile.sessionsCardBody}</p>
+            <Button type="button" variant="destructive" size="sm" onClick={handleLogoutAll}>
+              {t.common.signOutAll}
+            </Button>
           </CardContent>
         </Card>
       </div>

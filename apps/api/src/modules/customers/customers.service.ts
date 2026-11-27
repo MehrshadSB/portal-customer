@@ -10,17 +10,16 @@ import type { ContactDto, CustomerDto, CustomerMemberDto, PaginationMeta } from 
 import type {
   CreateContactInput,
   CreateCustomerInput,
-  InviteCustomerMemberInput,
+  CreateCustomerMemberInput,
   ListCustomersQueryInput,
   UpdateContactInput,
   UpdateCustomerInput,
   UpdateCustomerMemberInput,
 } from '@portal/validators';
-import { and, asc, desc, eq, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, isNull, ne, or, sql } from 'drizzle-orm';
 import type { AuthenticatedActor, RequestMetadata } from '../../common/types/auth-context';
 import { DRIZZLE_DB, type DrizzleDb } from '../../infrastructure/database/database.module';
 import {
-  authTokens,
   contacts,
   customerMembers,
   customers,
@@ -32,7 +31,6 @@ import {
 import { MailService } from '../../infrastructure/mail/mail.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthStateService } from '../auth/auth-state.service';
-import { generateOpaqueToken, hashToken } from '../auth/auth.service';
 import { SettingsService } from '../settings/settings.service';
 
 @Injectable()
@@ -584,24 +582,38 @@ export class CustomersService {
     }));
   }
 
-  async inviteMember(
+  async createMember(
     customerIdParam: string,
-    dto: InviteCustomerMemberInput,
+    dto: CreateCustomerMemberInput,
     actor: AuthenticatedActor,
     meta: RequestMetadata,
   ): Promise<CustomerMemberDto> {
     const customerId = this.resolveTargetCustomerId(actor, customerIdParam);
     const customer = await this.getById(customerId, actor);
 
-    const existing = await this.db
+    const existingPhone = await this.db
       .select({ id: users.id })
       .from(users)
-      .where(and(sql`lower(${users.email}) = ${dto.email}`, isNull(users.deletedAt)));
-    if (existing.length > 0) {
+      .where(and(eq(users.phone, dto.phone), isNull(users.deletedAt)));
+    if (existingPhone.length > 0) {
       throw new ConflictException({
-        code: 'EMAIL_ALREADY_EXISTS',
-        message: 'A user with this email already exists',
+        code: 'PHONE_ALREADY_EXISTS',
+        message: 'A user with this mobile number already exists',
       });
+    }
+
+    const emailNormalized = dto.email ? dto.email.trim().toLowerCase() : null;
+    if (emailNormalized) {
+      const existingEmail = await this.db
+        .select({ id: users.id })
+        .from(users)
+        .where(and(sql`lower(${users.email}) = ${emailNormalized}`, isNull(users.deletedAt)));
+      if (existingEmail.length > 0) {
+        throw new ConflictException({
+          code: 'EMAIL_ALREADY_EXISTS',
+          message: 'A user with this email already exists',
+        });
+      }
     }
 
     const [role] = await this.db
@@ -615,17 +627,17 @@ export class CustomersService {
       });
     }
 
-    const rawToken = generateOpaqueToken();
     const localization = await this.settingsService.getLocalization();
 
     const createdMemberId = await this.db.transaction(async (tx) => {
       const [user] = await tx
         .insert(users)
         .values({
-          email: dto.email,
+          email: emailNormalized,
+          phone: dto.phone,
           fullName: dto.fullName,
           userType: 'customer',
-          status: 'invited',
+          status: 'active',
           locale: localization.defaultLocale,
         })
         .returning();
@@ -640,27 +652,21 @@ export class CustomersService {
           jobTitle: dto.jobTitle ?? null,
           isPrimary: dto.isPrimary,
           invitedByUserId: actor.id,
+          joinedAt: new Date(),
         })
         .returning();
       if (!member) throw new Error('Failed to create customer member');
-
-      await tx.insert(authTokens).values({
-        userId: user.id,
-        purpose: 'invite',
-        tokenHash: hashToken(rawToken),
-        expiresAt: new Date(Date.now() + 72 * 60 * 60 * 1000),
-      });
 
       await this.auditService.record(
         {
           actorUserId: actor.id,
           actorType: actor.userType,
           customerId,
-          action: 'customer_member.invited',
+          action: 'customer_member.provisioned',
           entityType: 'customer_member',
           entityId: member.id,
-          summary: `Invited ${dto.fullName} (${dto.email}) as ${role.slug}`,
-          afterJson: { email: dto.email, roleSlug: role.slug },
+          summary: `Provisioned portal profile for ${dto.fullName} (${dto.phone}) as ${role.slug}`,
+          afterJson: { phone: dto.phone, email: emailNormalized, roleSlug: role.slug },
           meta,
         },
         tx,
@@ -669,18 +675,20 @@ export class CustomersService {
       return member.id;
     });
 
-    await this.mailService.enqueueInvite({
-      to: dto.email,
-      fullName: dto.fullName,
-      surface: 'portal',
-      token: rawToken,
-      companyName: customer.companyName,
-      locale: localization.defaultLocale,
-    });
+    if (emailNormalized) {
+      await this.mailService.enqueueProfileProvisioned({
+        to: emailNormalized,
+        fullName: dto.fullName,
+        surface: 'portal',
+        phone: dto.phone,
+        companyName: customer.companyName,
+        locale: localization.defaultLocale,
+      });
+    }
 
     const list = await this.listMembers(customerId, actor);
     const created = list.find((m) => m.id === createdMemberId);
-    if (!created) throw new Error('Invited member lookup failed');
+    if (!created) throw new Error('Provisioned member lookup failed');
     return created;
   }
 
@@ -699,11 +707,50 @@ export class CustomersService {
       throw new NotFoundException({ code: 'MEMBER_NOT_FOUND', message: 'Member not found' });
     }
 
-    if (target.userId === actor.id && (dto.status === 'suspended' || (dto.roleSlug && dto.roleSlug !== 'customer_admin'))) {
+    if (
+      target.userId === actor.id &&
+      (dto.status === 'suspended' || (dto.roleSlug && dto.roleSlug !== 'customer_admin'))
+    ) {
       throw new BadRequestException({
         code: 'SELF_MODIFICATION_FORBIDDEN',
         message: 'You cannot suspend yourself or remove your own customer admin role',
       });
+    }
+
+    if (dto.phone !== undefined && dto.phone !== target.phone) {
+      const conflictPhone = await this.db
+        .select({ id: users.id })
+        .from(users)
+        .where(
+          and(eq(users.phone, dto.phone), ne(users.id, target.userId), isNull(users.deletedAt)),
+        );
+      if (conflictPhone.length > 0) {
+        throw new ConflictException({
+          code: 'PHONE_ALREADY_EXISTS',
+          message: 'A user with this mobile number already exists',
+        });
+      }
+    }
+
+    const nextEmail =
+      dto.email === undefined ? undefined : dto.email ? dto.email.trim().toLowerCase() : null;
+    if (nextEmail) {
+      const conflictEmail = await this.db
+        .select({ id: users.id })
+        .from(users)
+        .where(
+          and(
+            sql`lower(${users.email}) = ${nextEmail}`,
+            ne(users.id, target.userId),
+            isNull(users.deletedAt),
+          ),
+        );
+      if (conflictEmail.length > 0) {
+        throw new ConflictException({
+          code: 'EMAIL_ALREADY_EXISTS',
+          message: 'A user with this email already exists',
+        });
+      }
     }
 
     let nextRoleId = target.roleId;
@@ -734,10 +781,19 @@ export class CustomersService {
           .where(and(eq(customerMembers.id, memberId), eq(customerMembers.customerId, customerId)));
       }
 
-      if (dto.status !== undefined || dto.roleSlug !== undefined) {
+      if (
+        dto.fullName !== undefined ||
+        dto.phone !== undefined ||
+        nextEmail !== undefined ||
+        dto.status !== undefined ||
+        dto.roleSlug !== undefined
+      ) {
         await tx
           .update(users)
           .set({
+            ...(dto.fullName !== undefined ? { fullName: dto.fullName } : {}),
+            ...(dto.phone !== undefined ? { phone: dto.phone } : {}),
+            ...(nextEmail !== undefined ? { email: nextEmail } : {}),
             ...(dto.status !== undefined ? { status: dto.status } : {}),
             tokenVersion: sql`${users.tokenVersion} + 1`,
             updatedAt: new Date(),
@@ -753,8 +809,14 @@ export class CustomersService {
           action: 'customer_member.updated',
           entityType: 'customer_member',
           entityId: memberId,
-          summary: `Updated member ${target.email}`,
-          beforeJson: { roleSlug: target.roleSlug, status: target.userStatus },
+          summary: `Updated member ${target.phone ?? target.email ?? target.fullName}`,
+          beforeJson: {
+            fullName: target.fullName,
+            phone: target.phone,
+            email: target.email,
+            roleSlug: target.roleSlug,
+            status: target.userStatus,
+          },
           afterJson: dto,
           meta,
         },

@@ -5,8 +5,9 @@ import {
   PERMISSIONS,
   type AuditLogDto,
   type CustomerDto,
-  type DepartmentDto,
   type EmployeeDto,
+  type OrderDto,
+  type TicketDto,
 } from '@portal/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, PageHeader, StatusBadge } from '@portal/ui';
 import { useQuery } from '@tanstack/react-query';
@@ -21,7 +22,23 @@ export default function AdminDashboardHomePage() {
   const canReadCustomers =
     hasPermission(PERMISSIONS.CUSTOMER_READ_ALL) ||
     hasPermission(PERMISSIONS.CUSTOMER_READ_ASSIGNED);
+  const canReadOrders =
+    hasPermission(PERMISSIONS.ORDER_READ_ALL) || hasPermission(PERMISSIONS.ORDER_READ_DEPARTMENT);
+  const canReadTickets =
+    hasPermission(PERMISSIONS.TICKET_READ_ALL) || hasPermission(PERMISSIONS.TICKET_READ_DEPARTMENT);
   const canReadAudit = hasPermission(PERMISSIONS.AUDIT_LOG_READ);
+
+  const ordersQuery = useQuery({
+    queryKey: ['admin', 'overview', 'orders'],
+    queryFn: () => adminApi.get<OrderDto[]>('/orders?limit=1&operationalState=active'),
+    enabled: Boolean(user) && canReadOrders,
+  });
+
+  const ticketsQuery = useQuery({
+    queryKey: ['admin', 'overview', 'tickets'],
+    queryFn: () => adminApi.get<TicketDto[]>('/tickets?limit=1&status=open'),
+    enabled: Boolean(user) && canReadTickets,
+  });
 
   const customersQuery = useQuery({
     queryKey: ['admin', 'overview', 'customers'],
@@ -32,12 +49,6 @@ export default function AdminDashboardHomePage() {
   const employeesQuery = useQuery({
     queryKey: ['admin', 'overview', 'employees'],
     queryFn: () => adminApi.get<EmployeeDto[]>('/employees?limit=1'),
-    enabled: Boolean(user),
-  });
-
-  const deptsQuery = useQuery({
-    queryKey: ['admin', 'overview', 'departments'],
-    queryFn: () => adminApi.get<DepartmentDto[]>('/departments'),
     enabled: Boolean(user),
   });
 
@@ -62,6 +73,44 @@ export default function AdminDashboardHomePage() {
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>{t.admin.overview.activeOrdersCardTitle}</CardTitle>
+            <CardDescription>{t.admin.overview.activeOrdersCardDesc}</CardDescription>
+          </CardHeader>
+          <CardContent className="flex items-end justify-between">
+            <span className="font-mono-tabular text-2xl font-semibold">
+              {ordersQuery.data?.meta?.total !== undefined
+                ? formatNumber(ordersQuery.data.meta.total)
+                : '—'}
+            </span>
+            {canReadOrders ? (
+              <Link href="/orders" className="text-xs text-[var(--accent-cobalt)] hover:underline">
+                {t.admin.overview.activeOrdersAction}
+              </Link>
+            ) : null}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{t.admin.overview.openTicketsCardTitle}</CardTitle>
+            <CardDescription>{t.admin.overview.openTicketsCardDesc}</CardDescription>
+          </CardHeader>
+          <CardContent className="flex items-end justify-between">
+            <span className="font-mono-tabular text-2xl font-semibold">
+              {ticketsQuery.data?.meta?.total !== undefined
+                ? formatNumber(ticketsQuery.data.meta.total)
+                : '—'}
+            </span>
+            {canReadTickets ? (
+              <Link href="/tickets" className="text-xs text-[var(--accent-cobalt)] hover:underline">
+                {t.admin.overview.openTicketsAction}
+              </Link>
+            ) : null}
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle>{t.admin.overview.customersCardTitle}</CardTitle>
@@ -97,40 +146,6 @@ export default function AdminDashboardHomePage() {
             </Link>
           </CardContent>
         </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>{t.admin.overview.departmentsCardTitle}</CardTitle>
-            <CardDescription>{t.admin.overview.departmentsCardDesc}</CardDescription>
-          </CardHeader>
-          <CardContent className="flex items-end justify-between">
-            <span className="font-mono-tabular text-2xl font-semibold">
-              {deptsQuery.data?.data.length !== undefined
-                ? formatNumber(deptsQuery.data.data.length)
-                : '—'}
-            </span>
-            <Link href="/departments" className="text-xs text-[var(--accent-cobalt)] hover:underline">
-              {t.admin.overview.departmentsAction}
-            </Link>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>{t.admin.overview.permissionsCardTitle}</CardTitle>
-            <CardDescription>{t.admin.overview.permissionsCardDesc}</CardDescription>
-          </CardHeader>
-          <CardContent className="flex items-end justify-between">
-            <span className="font-mono-tabular text-2xl font-semibold">
-              {formatNumber(user?.permissions.length ?? 0)}
-            </span>
-            {hasPermission(PERMISSIONS.ROLE_PERMISSION_MANAGE) ? (
-              <Link href="/settings" className="text-xs text-[var(--accent-cobalt)] hover:underline">
-                {t.admin.overview.permissionsAction}
-              </Link>
-            ) : null}
-          </CardContent>
-        </Card>
       </div>
 
       {canReadAudit ? (
@@ -152,7 +167,10 @@ export default function AdminDashboardHomePage() {
                 <div key={entry.id} className="flex items-center justify-between gap-4 py-2.5">
                   <div className="min-w-0">
                     <p className="truncate font-medium text-[var(--ink-primary)]">{entry.summary}</p>
-                    <p dir="ltr" className="font-mono-tabular truncate text-start text-[11px] text-[var(--ink-muted)]">
+                    <p
+                      dir="ltr"
+                      className="font-mono-tabular truncate text-start text-[11px] text-[var(--ink-muted)]"
+                    >
                       {entry.action} · {entry.actorEmail ?? entry.actorType}
                     </p>
                   </div>

@@ -18,7 +18,6 @@ import { pgEnum } from 'drizzle-orm/pg-core';
 export const userTypeEnum = pgEnum('user_type', USER_TYPES);
 export const userStatusEnum = pgEnum('user_status', USER_STATUSES);
 export const roleScopeEnum = pgEnum('role_scope', ROLE_SCOPES);
-export const authTokenPurposeEnum = pgEnum('auth_token_purpose', ['invite', 'password_reset']);
 
 export const customerStatusEnum = pgEnum('customer_status', CUSTOMER_STATUSES);
 

@@ -1,5 +1,6 @@
 import { CUSTOMER_ROLE_SLUGS, CUSTOMER_STATUSES } from '@portal/types';
 import { z } from 'zod';
+import { phoneSchema } from './auth';
 import { paginationQuerySchema, uuidSchema } from './common';
 
 const addressSchema = z
@@ -44,9 +45,10 @@ export const createContactSchema = z.object({
   notes: z.string().max(2000).optional(),
 });
 
-export const inviteCustomerMemberSchema = z.object({
-  email: z.string().trim().email().toLowerCase(),
+export const createCustomerMemberSchema = z.object({
   fullName: z.string().trim().min(2).max(150),
+  phone: phoneSchema,
+  email: z.string().trim().email().toLowerCase().optional().or(z.literal('')),
   roleSlug: z.enum(CUSTOMER_ROLE_SLUGS),
   jobTitle: z.string().trim().max(120).optional(),
   isPrimary: z.boolean().default(false),
@@ -55,6 +57,9 @@ export const inviteCustomerMemberSchema = z.object({
 export const updateContactSchema = createContactSchema.partial();
 
 export const updateCustomerMemberSchema = z.object({
+  fullName: z.string().trim().min(2).max(150).optional(),
+  phone: phoneSchema.optional(),
+  email: z.string().trim().email().toLowerCase().nullable().optional().or(z.literal('')),
   roleSlug: z.enum(CUSTOMER_ROLE_SLUGS).optional(),
   jobTitle: z.string().trim().max(120).nullable().optional(),
   isPrimary: z.boolean().optional(),
@@ -66,5 +71,5 @@ export type UpdateCustomerInput = z.infer<typeof updateCustomerSchema>;
 export type ListCustomersQueryInput = z.infer<typeof listCustomersQuerySchema>;
 export type CreateContactInput = z.infer<typeof createContactSchema>;
 export type UpdateContactInput = z.infer<typeof updateContactSchema>;
-export type InviteCustomerMemberInput = z.infer<typeof inviteCustomerMemberSchema>;
+export type CreateCustomerMemberInput = z.infer<typeof createCustomerMemberSchema>;
 export type UpdateCustomerMemberInput = z.infer<typeof updateCustomerMemberSchema>;

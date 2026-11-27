@@ -18,8 +18,8 @@ import {
   createContactSchema,
   type CreateCustomerInput,
   createCustomerSchema,
-  type InviteCustomerMemberInput,
-  inviteCustomerMemberSchema,
+  type CreateCustomerMemberInput,
+  createCustomerMemberSchema,
   type ListCustomersQueryInput,
   listCustomersQuerySchema,
   type UpdateContactInput,
@@ -214,7 +214,6 @@ export class CustomersController {
   @EnforceCustomerParam('id')
   @RequireAnyPermission(
     PERMISSIONS.CUSTOMER_MEMBER_MANAGE_ALL,
-    PERMISSIONS.CUSTOMER_MEMBER_MANAGE_OWN,
     PERMISSIONS.CUSTOMER_READ_ALL,
     PERMISSIONS.CUSTOMER_READ_OWN,
   )
@@ -227,32 +226,26 @@ export class CustomersController {
     return { data };
   }
 
-  @Post(':id/members/invite')
-  @EnforceCustomerParam('id')
-  @RequireAnyPermission(
-    PERMISSIONS.CUSTOMER_MEMBER_MANAGE_ALL,
-    PERMISSIONS.CUSTOMER_MEMBER_MANAGE_OWN,
-  )
-  @ApiOperation({ summary: 'Invite a customer portal user' })
-  async inviteMember(
-    @Param('id', CustomerIdOrSelfPipe) id: string,
-    @Body(new ZodValidationPipe(inviteCustomerMemberSchema)) body: InviteCustomerMemberInput,
+  @Post(':id/members')
+  @AllowedSurfaces('admin')
+  @RequirePermissions(PERMISSIONS.CUSTOMER_MEMBER_MANAGE_ALL)
+  @ApiOperation({ summary: 'Provision an active customer portal login profile (Admin only)' })
+  async createMember(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(new ZodValidationPipe(createCustomerMemberSchema)) body: CreateCustomerMemberInput,
     @CurrentUser() actor: AuthenticatedActor,
     @ReqMeta() meta: RequestMetadata,
   ) {
-    const data = await this.customersService.inviteMember(id, body, actor, meta);
+    const data = await this.customersService.createMember(id, body, actor, meta);
     return { data };
   }
 
   @Patch(':id/members/:memberId')
-  @EnforceCustomerParam('id')
-  @RequireAnyPermission(
-    PERMISSIONS.CUSTOMER_MEMBER_MANAGE_ALL,
-    PERMISSIONS.CUSTOMER_MEMBER_MANAGE_OWN,
-  )
-  @ApiOperation({ summary: 'Update customer portal member role or status' })
+  @AllowedSurfaces('admin')
+  @RequirePermissions(PERMISSIONS.CUSTOMER_MEMBER_MANAGE_ALL)
+  @ApiOperation({ summary: 'Update customer portal member profile, role, or status (Admin only)' })
   async updateMember(
-    @Param('id', CustomerIdOrSelfPipe) id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Param('memberId', ParseUUIDPipe) memberId: string,
     @Body(new ZodValidationPipe(updateCustomerMemberSchema)) body: UpdateCustomerMemberInput,
     @CurrentUser() actor: AuthenticatedActor,

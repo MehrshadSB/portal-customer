@@ -34,7 +34,23 @@ export const listTicketsQuerySchema = paginationQuerySchema.extend({
   unassignedOnly: z.coerce.boolean().optional(),
 });
 
+export const reopenTicketSchema = z.object({
+  reason: z.string().trim().max(1000).optional(),
+});
+
+export const listMessagesQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  before: z.string().datetime().optional(),
+});
+
+export const markConversationReadSchema = z.object({
+  lastReadMessageId: uuidSchema.optional(),
+});
+
 export type CreateTicketInput = z.infer<typeof createTicketSchema>;
 export type UpdateTicketInput = z.infer<typeof updateTicketSchema>;
+export type ReopenTicketInput = z.infer<typeof reopenTicketSchema>;
 export type CreateMessageInput = z.infer<typeof createMessageSchema>;
 export type ListTicketsQueryInput = z.infer<typeof listTicketsQuerySchema>;
+export type ListMessagesQueryInput = z.infer<typeof listMessagesQuerySchema>;
+export type MarkConversationReadInput = z.infer<typeof markConversationReadSchema>;

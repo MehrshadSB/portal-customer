@@ -1,3 +1,6 @@
+import type { OrderOperationalState, TicketPriority, TicketStatus, WorkflowColorToken } from './domain';
+import type { AttachmentDto } from './dtos';
+
 export const REALTIME_NAMESPACES = {
   PORTAL: '/realtime/portal',
   ADMIN: '/realtime/admin',
@@ -21,8 +24,33 @@ export interface RealtimeMessagePayload {
   senderName: string;
   senderType: 'employee' | 'customer';
   visibility: 'public' | 'internal';
+  messageType: 'text' | 'system_event';
   body: string;
+  attachments: AttachmentDto[];
   createdAt: string;
+}
+
+export interface RealtimeOrderProgressPayload {
+  orderId: string;
+  orderNumber: string;
+  toStatusId: string;
+  stageCode: string;
+  stageName: string;
+  stageColor: WorkflowColorToken;
+  operationalState: OrderOperationalState;
+  isCustomerVisible: boolean;
+  note: string | null;
+  createdAt: string;
+}
+
+export interface RealtimeTicketUpdatedPayload {
+  ticketId: string;
+  ticketNumber: string;
+  status: TicketStatus;
+  priority: TicketPriority;
+  assignedEmployeeId: string | null;
+  assignedDepartmentId: string | null;
+  updatedAt: string;
 }
 
 export interface RealtimeNotificationPayload {
@@ -30,6 +58,8 @@ export interface RealtimeNotificationPayload {
   type: string;
   title: string;
   body: string;
+  entityType: string | null;
+  entityId: string | null;
   actionUrl: string | null;
   createdAt: string;
 }

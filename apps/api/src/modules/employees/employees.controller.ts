@@ -2,8 +2,8 @@ import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from 
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PERMISSIONS } from '@portal/types';
 import {
-  type InviteEmployeeInput,
-  inviteEmployeeSchema,
+  type CreateEmployeeInput,
+  createEmployeeSchema,
   type ListEmployeesQueryInput,
   listEmployeesQuerySchema,
   type UpdateEmployeeInput,
@@ -34,16 +34,16 @@ export class EmployeesController {
     return { data: items, meta };
   }
 
-  @Post('invite')
+  @Post()
   @AllowedSurfaces('admin')
   @RequirePermissions(PERMISSIONS.EMPLOYEE_MANAGE)
-  @ApiOperation({ summary: 'Invite a new employee and assign roles' })
-  async invite(
-    @Body(new ZodValidationPipe(inviteEmployeeSchema)) body: InviteEmployeeInput,
+  @ApiOperation({ summary: 'Create an active employee profile and assign roles' })
+  async create(
+    @Body(new ZodValidationPipe(createEmployeeSchema)) body: CreateEmployeeInput,
     @CurrentUser() actor: AuthenticatedActor,
     @ReqMeta() meta: RequestMetadata,
   ) {
-    const data = await this.employeesService.invite(body, actor, meta);
+    const data = await this.employeesService.create(body, actor, meta);
     return { data };
   }
 

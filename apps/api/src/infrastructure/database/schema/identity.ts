@@ -8,24 +8,24 @@ import {
   primaryKey,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
-import { authTokenPurposeEnum, roleScopeEnum, userStatusEnum, userTypeEnum } from './enums';
+import { roleScopeEnum, userStatusEnum, userTypeEnum } from './enums';
 
 export const users = pgTable(
   'users',
   {
     id: uuid('id').defaultRandom().primaryKey(),
-    email: varchar('email', { length: 255 }).notNull(),
-    passwordHash: text('password_hash'),
+    email: varchar('email', { length: 255 }),
     fullName: varchar('full_name', { length: 150 }).notNull(),
     phone: varchar('phone', { length: 40 }),
     timezone: varchar('timezone', { length: 64 }).notNull().default('Asia/Tehran'),
     locale: varchar('locale', { length: 10 }).notNull().default('fa'),
     userType: userTypeEnum('user_type').notNull(),
-    status: userStatusEnum('status').notNull().default('invited'),
+    status: userStatusEnum('status').notNull().default('active'),
     tokenVersion: integer('token_version').notNull().default(1),
     lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
     deletedAt: timestamp('deleted_at', { withTimezone: true }),
@@ -35,25 +35,32 @@ export const users = pgTable(
   (table) => [
     uniqueIndex('uq_users_email_active')
       .on(sql`lower(${table.email})`)
-      .where(sql`${table.deletedAt} IS NULL`),
+      .where(sql`${table.email} IS NOT NULL AND ${table.deletedAt} IS NULL`),
+    uniqueIndex('uq_users_phone_active')
+      .on(table.phone)
+      .where(sql`${table.phone} IS NOT NULL AND ${table.deletedAt} IS NULL`),
     index('idx_users_type_status').on(table.userType, table.status),
   ],
 );
 
-export const authTokens = pgTable(
-  'auth_tokens',
+export const userIdentities = pgTable(
+  'user_identities',
   {
     id: uuid('id').defaultRandom().primaryKey(),
     userId: uuid('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    purpose: authTokenPurposeEnum('purpose').notNull(),
-    tokenHash: varchar('token_hash', { length: 64 }).notNull().unique(),
-    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
-    usedAt: timestamp('used_at', { withTimezone: true }),
-    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    provider: varchar('provider', { length: 64 }).notNull(),
+    issuer: varchar('issuer', { length: 255 }).notNull(),
+    subject: varchar('subject', { length: 255 }).notNull(),
+    emailAtLink: varchar('email_at_link', { length: 255 }),
+    linkedAt: timestamp('linked_at', { withTimezone: true }).defaultNow().notNull(),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
   },
-  (table) => [index('idx_auth_tokens_user_purpose').on(table.userId, table.purpose)],
+  (table) => [
+    unique('uq_user_identities_provider_sub').on(table.provider, table.issuer, table.subject),
+    index('idx_user_identities_user').on(table.userId),
+  ],
 );
 
 export const departments = pgTable('departments', {

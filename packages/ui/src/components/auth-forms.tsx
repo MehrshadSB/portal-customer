@@ -2,17 +2,14 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useI18n } from '@portal/i18n/react';
-import { SUPPORTED_LOCALES, type WorkflowColorToken } from '@portal/types';
+import type { AuthMethodsDto, OtpRequestResponseDto, WorkflowColorToken } from '@portal/types';
 import {
-  acceptInviteSchema,
-  forgotPasswordSchema,
-  loginSchema,
-  resetPasswordSchema,
-  type AcceptInviteInput,
-  type ForgotPasswordInput,
-  type LoginInput,
-  type ResetPasswordInput,
+  requestOtpSchema,
+  verifyOtpSchema,
+  type RequestOtpInput,
+  type VerifyOtpInput,
 } from '@portal/validators';
+import { KeyRound, ShieldCheck, Smartphone } from 'lucide-react';
 import * as React from 'react';
 import { useForm } from 'react-hook-form';
 import { AlertBanner } from './alert-banner';
@@ -20,7 +17,6 @@ import { Button } from './button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './card';
 import { Input, Label } from './input';
 import { LocaleSwitcher } from './locale-switcher';
-import { Select } from './select';
 import { StatusBadge } from './status-badge';
 
 interface SurfaceAuthHeaderProps {
@@ -59,293 +55,224 @@ export function AuthCardShell({
   );
 }
 
-export interface LoginCardProps extends SurfaceAuthHeaderProps {
-  submitLabel: string;
-  emailLabel?: string;
-  emailPlaceholder?: string;
-  onSubmitLogin: (values: LoginInput) => Promise<void>;
+export interface SsoOtpLoginCardProps extends SurfaceAuthHeaderProps {
+  authMethods?: AuthMethodsDto | null;
+  ssoStartHref: string;
+  initialErrorCode?: string | null;
+  onRequestOtp: (values: RequestOtpInput) => Promise<OtpRequestResponseDto>;
+  onVerifyOtp: (values: VerifyOtpInput) => Promise<void>;
   footer?: React.ReactNode;
 }
 
-export function LoginCard({
-  submitLabel,
-  emailLabel,
-  emailPlaceholder = 'name@company.ir',
-  onSubmitLogin,
+export function SsoOtpLoginCard({
+  authMethods,
+  ssoStartHref,
+  initialErrorCode,
+  onRequestOtp,
+  onVerifyOtp,
   footer,
   ...header
-}: LoginCardProps) {
-  const { t, translateError } = useI18n();
-  const [error, setError] = React.useState<string | null>(null);
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-  } = useForm<LoginInput>({
-    resolver: zodResolver(loginSchema),
+}: SsoOtpLoginCardProps) {
+  const { t, translateError, interpolate, formatNumber } = useI18n();
+  const [step, setStep] = React.useState<'phone' | 'otp'>('phone');
+  const [normalizedPhone, setNormalizedPhone] = React.useState('');
+  const [maskedPhone, setMaskedPhone] = React.useState('');
+  const [resendSeconds, setResendSeconds] = React.useState(0);
+  const [error, setError] = React.useState<string | null>(() =>
+    initialErrorCode ? translateError(initialErrorCode, initialErrorCode) : null,
+  );
+
+  React.useEffect(() => {
+    if (initialErrorCode) {
+      setError(translateError(initialErrorCode, initialErrorCode));
+    }
+  }, [initialErrorCode, translateError]);
+
+  React.useEffect(() => {
+    if (resendSeconds <= 0) return;
+    const timer = window.setInterval(() => {
+      setResendSeconds((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [resendSeconds]);
+
+  const phoneForm = useForm<RequestOtpInput>({
+    resolver: zodResolver(requestOtpSchema),
   });
 
-  const submit = async (values: LoginInput) => {
+  const otpForm = useForm<VerifyOtpInput>({
+    resolver: zodResolver(verifyOtpSchema),
+    defaultValues: { phone: '', code: '' },
+  });
+
+  const extractErr = (err: unknown, fallback: string) => {
+    const code =
+      typeof err === 'object' && err !== null && 'code' in err ? String(err.code) : undefined;
+    const msg = err instanceof Error ? err.message : fallback;
+    return translateError(code, msg);
+  };
+
+  const handleRequestOtp = async (values: RequestOtpInput) => {
     setError(null);
     try {
-      await onSubmitLogin(values);
+      const res = await onRequestOtp(values);
+      setNormalizedPhone(values.phone);
+      setMaskedPhone(res.maskedPhone);
+      setResendSeconds(res.resendAfterSeconds);
+      otpForm.reset({ phone: values.phone, code: '' });
+      setStep('otp');
     } catch (err) {
-      const code = typeof err === 'object' && err !== null && 'code' in err ? String(err.code) : undefined;
-      const msg = err instanceof Error ? err.message : t.errorCodes.INVALID_CREDENTIALS ?? 'Sign in failed';
-      setError(translateError(code, msg));
+      setError(extractErr(err, 'Failed to request verification code'));
     }
   };
 
+  const handleResend = async () => {
+    if (resendSeconds > 0 || !normalizedPhone) return;
+    setError(null);
+    try {
+      const res = await onRequestOtp({ phone: normalizedPhone });
+      setResendSeconds(res.resendAfterSeconds);
+    } catch (err) {
+      setError(extractErr(err, 'Failed to resend verification code'));
+    }
+  };
+
+  const handleVerifyOtp = async (values: VerifyOtpInput) => {
+    setError(null);
+    try {
+      await onVerifyOtp(values);
+    } catch (err) {
+      setError(extractErr(err, 'Verification failed'));
+    }
+  };
+
+  const ssoEnabled = Boolean(authMethods?.ssoEnabled);
+  const providerLabel = authMethods?.providerLabel || 'SSO';
+
   return (
     <AuthCardShell {...header}>
-      <form onSubmit={handleSubmit(submit)} className="space-y-4">
-        <div className="space-y-1.5">
-          <Label htmlFor="email">{emailLabel ?? t.auth.workEmailLabel}</Label>
-          <Input
-            id="email"
-            type="email"
-            dir="ltr"
-            autoComplete="email"
-            placeholder={emailPlaceholder}
-            {...register('email')}
-          />
-          {errors.email ? (
-            <p className="text-xs text-[var(--signal-crimson)]">{errors.email.message}</p>
-          ) : null}
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="password">{t.auth.passwordLabel}</Label>
-          <Input
-            id="password"
-            type="password"
-            dir="ltr"
-            autoComplete="current-password"
-            placeholder="••••••••••••"
-            {...register('password')}
-          />
-          {errors.password ? (
-            <p className="text-xs text-[var(--signal-crimson)]">{errors.password.message}</p>
-          ) : null}
-        </div>
-
+      <div className="space-y-4">
         {error ? <AlertBanner tone="crimson">{error}</AlertBanner> : null}
 
-        <Button type="submit" className="w-full" disabled={isSubmitting}>
-          {isSubmitting ? t.common.signingIn : submitLabel}
-        </Button>
-      </form>
-      {footer ? (
-        <div className="mt-4 border-t border-[var(--border-hairline)] pt-3">{footer}</div>
-      ) : null}
-    </AuthCardShell>
-  );
-}
-
-export interface ForgotPasswordCardProps extends SurfaceAuthHeaderProps {
-  onSubmitForgot: (values: ForgotPasswordInput) => Promise<void>;
-  footer?: React.ReactNode;
-}
-
-export function ForgotPasswordCard({
-  onSubmitForgot,
-  footer,
-  ...header
-}: ForgotPasswordCardProps) {
-  const { t, translateError } = useI18n();
-  const [sent, setSent] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-  } = useForm<ForgotPasswordInput>({ resolver: zodResolver(forgotPasswordSchema) });
-
-  const submit = async (values: ForgotPasswordInput) => {
-    setError(null);
-    try {
-      await onSubmitForgot(values);
-      setSent(true);
-    } catch (err) {
-      const code = typeof err === 'object' && err !== null && 'code' in err ? String(err.code) : undefined;
-      setError(translateError(code, err instanceof Error ? err.message : 'Request failed'));
-    }
-  };
-
-  return (
-    <AuthCardShell {...header}>
-      {sent ? (
-        <AlertBanner tone="emerald" title={t.auth.forgotSentTitle}>
-          {t.auth.forgotSentDesc}
-        </AlertBanner>
-      ) : (
-        <form onSubmit={handleSubmit(submit)} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="email">{t.auth.accountEmailLabel}</Label>
-            <Input id="email" type="email" dir="ltr" placeholder="name@company.ir" {...register('email')} />
-            {errors.email ? (
-              <p className="text-xs text-[var(--signal-crimson)]">{errors.email.message}</p>
-            ) : null}
-          </div>
-          {error ? <AlertBanner tone="crimson">{error}</AlertBanner> : null}
-          <Button type="submit" className="w-full" disabled={isSubmitting}>
-            {isSubmitting ? t.auth.sendingLink : t.auth.sendResetLink}
-          </Button>
-        </form>
-      )}
-      {footer ? (
-        <div className="mt-4 border-t border-[var(--border-hairline)] pt-3">{footer}</div>
-      ) : null}
-    </AuthCardShell>
-  );
-}
-
-export interface ResetPasswordCardProps extends SurfaceAuthHeaderProps {
-  token: string;
-  onSubmitReset: (values: ResetPasswordInput) => Promise<void>;
-  footer?: React.ReactNode;
-}
-
-export function ResetPasswordCard({
-  token,
-  onSubmitReset,
-  footer,
-  ...header
-}: ResetPasswordCardProps) {
-  const { t, translateError } = useI18n();
-  const [done, setDone] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-  } = useForm<ResetPasswordInput>({
-    resolver: zodResolver(resetPasswordSchema),
-    defaultValues: { token },
-  });
-
-  const submit = async (values: ResetPasswordInput) => {
-    setError(null);
-    try {
-      await onSubmitReset(values);
-      setDone(true);
-    } catch (err) {
-      const code = typeof err === 'object' && err !== null && 'code' in err ? String(err.code) : undefined;
-      setError(translateError(code, err instanceof Error ? err.message : 'Reset failed'));
-    }
-  };
-
-  return (
-    <AuthCardShell {...header}>
-      {done ? (
-        <AlertBanner tone="emerald" title={t.auth.resetDoneTitle}>
-          {t.auth.resetDoneDesc}
-        </AlertBanner>
-      ) : (
-        <form onSubmit={handleSubmit(submit)} className="space-y-4">
-          <input type="hidden" {...register('token')} />
-          {!token ? <AlertBanner tone="amber">{t.auth.missingTokenWarning}</AlertBanner> : null}
-          <div className="space-y-1.5">
-            <Label htmlFor="password">{t.auth.newPasswordLabel}</Label>
-            <Input id="password" type="password" dir="ltr" {...register('password')} />
-            {errors.password ? (
-              <p className="text-xs text-[var(--signal-crimson)]">{errors.password.message}</p>
-            ) : null}
-          </div>
-          {error ? <AlertBanner tone="crimson">{error}</AlertBanner> : null}
-          <Button type="submit" className="w-full" disabled={isSubmitting || !token}>
-            {isSubmitting ? t.auth.updatingPassword : t.auth.updatePassword}
-          </Button>
-        </form>
-      )}
-      {footer ? (
-        <div className="mt-4 border-t border-[var(--border-hairline)] pt-3">{footer}</div>
-      ) : null}
-    </AuthCardShell>
-  );
-}
-
-export interface AcceptInviteCardProps extends SurfaceAuthHeaderProps {
-  token: string;
-  onSubmitAccept: (values: AcceptInviteInput) => Promise<void>;
-  footer?: React.ReactNode;
-}
-
-export function AcceptInviteCard({
-  token,
-  onSubmitAccept,
-  footer,
-  ...header
-}: AcceptInviteCardProps) {
-  const { t, locale, translateError } = useI18n();
-  const [done, setDone] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-  } = useForm({
-    resolver: zodResolver(acceptInviteSchema),
-    defaultValues: { token, timezone: 'Asia/Tehran', locale },
-  });
-
-  const submit = async (values: AcceptInviteInput) => {
-    setError(null);
-    try {
-      await onSubmitAccept(values);
-      setDone(true);
-    } catch (err) {
-      const code = typeof err === 'object' && err !== null && 'code' in err ? String(err.code) : undefined;
-      setError(translateError(code, err instanceof Error ? err.message : 'Activation failed'));
-    }
-  };
-
-  return (
-    <AuthCardShell {...header}>
-      {done ? (
-        <AlertBanner tone="emerald" title={t.auth.inviteDoneTitle}>
-          {t.auth.inviteDoneDesc}
-        </AlertBanner>
-      ) : (
-        <form onSubmit={handleSubmit(submit)} className="space-y-4">
-          <input type="hidden" {...register('token')} />
-          {!token ? <AlertBanner tone="amber">{t.auth.missingTokenWarning}</AlertBanner> : null}
-          <div className="space-y-1.5">
-            <Label htmlFor="fullName">{t.auth.optionalNameLabel}</Label>
-            <Input id="fullName" type="text" {...register('fullName')} />
-            {errors.fullName ? (
-              <p className="text-xs text-[var(--signal-crimson)]">{errors.fullName.message}</p>
-            ) : null}
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
+        {step === 'phone' ? (
+          <form onSubmit={phoneForm.handleSubmit(handleRequestOtp)} className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="phone">{t.auth.optionalPhoneLabel}</Label>
-              <Input id="phone" type="tel" dir="ltr" placeholder="+98 21 ..." {...register('phone')} />
+              <Label htmlFor="otp-phone">{t.auth.mobilePhoneLabel}</Label>
+              <Input
+                id="otp-phone"
+                type="tel"
+                dir="ltr"
+                autoComplete="tel"
+                placeholder={t.auth.mobilePhonePlaceholder}
+                {...phoneForm.register('phone')}
+              />
+              {phoneForm.formState.errors.phone ? (
+                <p className="text-xs text-[var(--signal-crimson)]">
+                  {phoneForm.formState.errors.phone.message}
+                </p>
+              ) : (
+                <p className="text-[11px] text-[var(--ink-muted)]">{t.auth.mobilePhoneHint}</p>
+              )}
             </div>
+
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={phoneForm.formState.isSubmitting}
+            >
+              <Smartphone className="h-4 w-4" />
+              {phoneForm.formState.isSubmitting ? t.auth.sendingOtp : t.auth.sendOtp}
+            </Button>
+          </form>
+        ) : (
+          <form onSubmit={otpForm.handleSubmit(handleVerifyOtp)} className="space-y-4">
+            <input type="hidden" {...otpForm.register('phone')} />
+            <AlertBanner tone="cobalt">
+              {interpolate(t.auth.otpSentDesc, { phone: maskedPhone || normalizedPhone })}
+            </AlertBanner>
+
             <div className="space-y-1.5">
-              <Label htmlFor="invite-locale">{t.auth.preferredLanguageLabel}</Label>
-              <Select id="invite-locale" {...register('locale')}>
-                {SUPPORTED_LOCALES.map((code) => (
-                  <option key={code} value={code}>
-                    {code === 'fa' ? t.meta.persianLabel : t.meta.englishLabel}
-                  </option>
-                ))}
-              </Select>
+              <Label htmlFor="otp-code">{t.auth.otpCodeLabel}</Label>
+              <Input
+                id="otp-code"
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                dir="ltr"
+                maxLength={6}
+                placeholder="123456"
+                className="font-mono-tabular text-center text-base tracking-[0.35em]"
+                {...otpForm.register('code')}
+              />
+              {otpForm.formState.errors.code ? (
+                <p className="text-xs text-[var(--signal-crimson)]">
+                  {otpForm.formState.errors.code.message}
+                </p>
+              ) : null}
             </div>
+
+            <Button type="submit" className="w-full" disabled={otpForm.formState.isSubmitting}>
+              <KeyRound className="h-4 w-4" />
+              {otpForm.formState.isSubmitting ? t.auth.verifyingOtp : t.auth.verifyOtp}
+            </Button>
+
+            <div className="flex items-center justify-between text-xs">
+              <button
+                type="button"
+                className="text-[var(--ink-muted)] hover:text-[var(--ink-primary)] hover:underline"
+                onClick={() => {
+                  setStep('phone');
+                  setError(null);
+                }}
+              >
+                {t.auth.changePhone}
+              </button>
+
+              <button
+                type="button"
+                disabled={resendSeconds > 0}
+                onClick={() => void handleResend()}
+                className="font-medium text-[var(--accent-cobalt)] disabled:cursor-not-allowed disabled:opacity-50 hover:underline"
+              >
+                {resendSeconds > 0
+                  ? interpolate(t.auth.resendWait, { seconds: formatNumber(resendSeconds) })
+                  : t.auth.resendOtp}
+              </button>
+            </div>
+          </form>
+        )}
+
+        <div className="relative flex items-center py-1">
+          <div className="flex-grow border-t border-[var(--border-hairline)]" />
+          <span className="mx-3 shrink-0 text-[11px] text-[var(--ink-muted)]">
+            {t.auth.orDivider}
+          </span>
+          <div className="flex-grow border-t border-[var(--border-hairline)]" />
+        </div>
+
+        {ssoEnabled ? (
+          <a
+            href={ssoStartHref}
+            className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-4 text-xs font-medium text-[var(--ink-primary)] transition-colors hover:bg-[var(--bg-subtle)]"
+          >
+            <ShieldCheck className="h-4 w-4 text-[var(--accent-cobalt)]" />
+            {interpolate(t.auth.signInWithSso, { provider: providerLabel })}
+          </a>
+        ) : (
+          <div className="rounded-md border border-dashed border-[var(--border-hairline)] bg-[var(--bg-subtle)]/50 px-3 py-2.5 text-center text-[11px] text-[var(--ink-muted)]">
+            <span className="flex items-center justify-center gap-1.5 font-medium text-[var(--ink-primary)]">
+              <ShieldCheck className="h-3.5 w-3.5 text-[var(--ink-muted)]" />
+              {interpolate(t.auth.signInWithSso, { provider: providerLabel })}
+            </span>
+            <p className="mt-0.5">{t.auth.ssoUnavailableHint}</p>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="password">{t.auth.createPasswordLabel}</Label>
-            <Input id="password" type="password" dir="ltr" {...register('password')} />
-            {errors.password ? (
-              <p className="text-xs text-[var(--signal-crimson)]">{errors.password.message}</p>
-            ) : null}
-          </div>
-          {error ? <AlertBanner tone="crimson">{error}</AlertBanner> : null}
-          <Button type="submit" className="w-full" disabled={isSubmitting || !token}>
-            {isSubmitting ? t.auth.activatingAccount : t.auth.activateAccount}
-          </Button>
-        </form>
-      )}
+        )}
+
+        <p className="text-center text-[11px] text-[var(--ink-muted)]">
+          {t.auth.provisionRequiredNotice}
+        </p>
+      </div>
+
       {footer ? (
         <div className="mt-4 border-t border-[var(--border-hairline)] pt-3">{footer}</div>
       ) : null}

@@ -1,5 +1,6 @@
 import { CALENDAR_TYPES, EMPLOYEE_ROLE_SLUGS, SUPPORTED_LOCALES } from '@portal/types';
 import { z } from 'zod';
+import { phoneSchema } from './auth';
 import { paginationQuerySchema, uuidSchema } from './common';
 
 export const createDepartmentSchema = z.object({
@@ -18,9 +19,10 @@ export const updateDepartmentSchema = createDepartmentSchema.partial().extend({
   isActive: z.boolean().optional(),
 });
 
-export const inviteEmployeeSchema = z.object({
-  email: z.string().trim().email().toLowerCase(),
+export const createEmployeeSchema = z.object({
   fullName: z.string().trim().min(2).max(150),
+  phone: phoneSchema,
+  email: z.string().trim().email().toLowerCase().optional().or(z.literal('')),
   departmentId: uuidSchema.nullable().optional(),
   jobTitle: z.string().trim().max(120).optional(),
   roleSlugs: z.array(z.enum(EMPLOYEE_ROLE_SLUGS)).min(1, 'At least one employee role is required'),
@@ -28,7 +30,8 @@ export const inviteEmployeeSchema = z.object({
 
 export const updateEmployeeSchema = z.object({
   fullName: z.string().trim().min(2).max(150).optional(),
-  phone: z.string().trim().max(40).nullable().optional(),
+  phone: phoneSchema.optional(),
+  email: z.string().trim().email().toLowerCase().nullable().optional().or(z.literal('')),
   departmentId: uuidSchema.nullable().optional(),
   jobTitle: z.string().trim().max(120).nullable().optional(),
   roleSlugs: z.array(z.enum(EMPLOYEE_ROLE_SLUGS)).min(1).optional(),
@@ -69,7 +72,7 @@ export const updateLocalizationSettingsSchema = z
 export type UpdateLocalizationSettingsInput = z.infer<typeof updateLocalizationSettingsSchema>;
 export type CreateDepartmentInput = z.infer<typeof createDepartmentSchema>;
 export type UpdateDepartmentInput = z.infer<typeof updateDepartmentSchema>;
-export type InviteEmployeeInput = z.infer<typeof inviteEmployeeSchema>;
+export type CreateEmployeeInput = z.infer<typeof createEmployeeSchema>;
 export type UpdateEmployeeInput = z.infer<typeof updateEmployeeSchema>;
 export type ListEmployeesQueryInput = z.infer<typeof listEmployeesQuerySchema>;
 export type UpdateRolePermissionsInput = z.infer<typeof updateRolePermissionsSchema>;

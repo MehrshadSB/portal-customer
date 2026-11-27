@@ -1,14 +1,14 @@
 # Customer, Order Tracking & Support Platform
 
-Production-oriented B2B manufacturing customer portal, internal operations dashboard, and NestJS API built with Turborepo, pnpm, TypeScript, Next.js App Router, Drizzle ORM, PostgreSQL, Redis, BullMQ, Socket.IO, and S3-compatible storage.
+Production-oriented B2B manufacturing customer service portal, internal operations dashboard, and NestJS API built with Turborepo, pnpm, TypeScript, Next.js App Router, Drizzle ORM, PostgreSQL, Redis, BullMQ, Socket.IO, and S3-compatible storage.
 
 ## Workspace Layout
 
-- `apps/portal` — Customer Portal (`http://localhost:3000`)
+- `apps/portal` — Customer Service Portal (`http://localhost:3000`)
 - `apps/admin` — Admin Operations Dashboard (`http://localhost:3001`)
-- `apps/api` — NestJS REST API, Socket.IO gateway & BullMQ workers (`http://localhost:4000`, Swagger at `/api/docs`)
+- `apps/api` — NestJS REST API, Socket.IO gateway (`/realtime/portal`, `/realtime/admin`) & BullMQ workers (`http://localhost:4000`, Swagger at `/api/docs`)
 - `packages/ui` — Shared Precision Industrial Blueprint UI components & tokens
-- `packages/api-client` — Shared HTTP client (CSRF + 401 refresh lock) & Socket.IO connector
+- `packages/api-client` — Shared HTTP client (CSRF + 401 refresh lock + S3 presigned upload) & Socket.IO connector
 - `packages/validators` — Pure Zod schemas shared by frontend forms & backend DTOs
 - `packages/types` — Shared domain enums, permission keys, and API/WS contracts
 - `packages/eslint-config` & `packages/typescript-config` — Shared linting & TypeScript presets
@@ -25,12 +25,14 @@ pnpm db:seed
 pnpm dev
 ```
 
-### Seeded Development Accounts (Password: `DevPassword123!`)
+### Seeded Development Accounts (Passwordless: SMS OTP / OIDC SSO)
 
-- **Admin (`http://localhost:3001`)**: `admin@platform.local`
-- **Order Manager (`http://localhost:3001`)**: `orders@platform.local`
-- **Support Agent (`http://localhost:3001`)**: `support@platform.local`
-- **Customer Admin (`http://localhost:3000`)**: `buyer@apex-aero.local` (`Apex Aerospace Mfg`)
+- **Admin (`http://localhost:3001`)**: `+989120000001` (`admin@platform.local`)
+- **Order Manager (`http://localhost:3001`)**: `+989120000002` (`orders@platform.local`)
+- **Support Agent (`http://localhost:3001`)**: `+989120000003` (`support@platform.local`)
+- **Customer Admin (`http://localhost:3000`)**: `+989120000004` (`buyer@apex-aero.local`, `Apex Aerospace Mfg`)
+
+> In development (`SMS_PROVIDER=console`), requesting an OTP logs the 6-digit code to the API server console. Unprovisioned phone numbers and SSO identities are rejected (`403 PROFILE_NOT_PROVISIONED`) until an Admin creates their profile.
 
 ### Local Service Consoles
 

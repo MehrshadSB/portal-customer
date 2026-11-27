@@ -1,0 +1,22 @@
+{
+  "scanned": "2026-11-26",
+  "scope": "app",
+  "genre": "modern-minimal",
+  "findings": {
+    "fonts": "Vazirmatn Variable, Plus Jakarta Sans Variable, JetBrains Mono Variable (@fontsource-variable/* in apps/admin/package.json L14-16 & apps/portal/package.json L14-16; @theme inline in apps/admin/src/app/globals.css L5-8 & apps/portal/src/app/globals.css L5-8)",
+    "palette": "Hex CSS custom properties in :root/.dark (packages/ui/src/styles/blueprint.css L1-38) plus Tailwind stock utilities (status-badge.tsx L5-30, alert-banner.tsx L5-14)",
+    "motion": "CSS transitions (transition-colors, transition-all in button.tsx L7) and animate-spin; no third-party motion library",
+    "spacing": "Tailwind CSS v4 (@tailwindcss/postcss ^4.1.6 in apps/admin/package.json L35)",
+    "framework": "Next.js 15 App Router (next ^15.3.2), React 19, TanStack Query, React Hook Form + Zod, @portal/ui, @portal/i18n (fa RTL / en LTR)",
+    "brand": "No design.md or .hallmark/brand-spec.md. Current bilingual brand: آذرپارت صنعت / AzarPart Mfg (Admin: AzarPart Ops) with AP monogram (icon.svg, app-shell.tsx L48-53)"
+  },
+  "preserve": [
+    "Bilingual fa (RTL) / en (LTR) font stack (Vazirmatn Variable, Plus Jakarta Sans Variable, JetBrains Mono Variable)",
+    "All 24 routes across apps/admin (14) and apps/portal (10), RBAC permission guards, React Query/Socket.IO wiring, i18n dictionary keys, and form contracts"
+  ],
+  "introduce": [
+    "Shared locked design.md across packages/ui, apps/admin, and apps/portal",
+    "OKLCH token architecture (tokens.css, base.css) mapped to semantic enterprise roles",
+    "Enterprise app-screen hierarchy: operational workbenches, dense tabular layouts, skeleton/empty/error states, 8-state interactive controls, accessible <dialog> modals, and Hallmark gate compliance"
+  ]
+}

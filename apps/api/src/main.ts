@@ -7,6 +7,7 @@ import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 import type { AppEnv } from './infrastructure/config/env.schema';
+import { RedisIoAdapter } from './modules/realtime/redis-io.adapter';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
@@ -17,7 +18,12 @@ async function bootstrap(): Promise<void> {
   const port = config.get('API_PORT', { infer: true });
   const portalUrl = config.get('PORTAL_URL', { infer: true });
   const adminUrl = config.get('ADMIN_URL', { infer: true });
+  const redisUrl = config.get('REDIS_URL', { infer: true });
   const swaggerEnabled = config.get('SWAGGER_ENABLED', { infer: true });
+
+  const redisIoAdapter = new RedisIoAdapter(app);
+  await redisIoAdapter.connectToRedis(redisUrl);
+  app.useWebSocketAdapter(redisIoAdapter);
 
   app.setGlobalPrefix('api/v1');
   app.use(helmet());
@@ -33,7 +39,7 @@ async function bootstrap(): Promise<void> {
   if (swaggerEnabled) {
     const swaggerConfig = new DocumentBuilder()
       .setTitle('Customer, Order Tracking & Support Platform API')
-      .setDescription('REST API for Customer Portal and Admin Operations Dashboard')
+      .setDescription('REST & Realtime API for Customer Portal and Admin Operations Dashboard')
       .setVersion('1.0.0')
       .build();
     const document = SwaggerModule.createDocument(app, swaggerConfig);

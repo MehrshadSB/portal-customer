@@ -1,4 +1,4 @@
-import { ORDER_OPERATIONAL_STATES, ORDER_PRIORITIES } from '@portal/types';
+import { ORDER_OPERATIONAL_STATES, ORDER_PRIORITIES, WORKFLOW_COLOR_TOKENS } from '@portal/types';
 import { z } from 'zod';
 import { paginationQuerySchema, uuidSchema } from './common';
 
@@ -52,7 +52,30 @@ export const listOrdersQuerySchema = paginationQuerySchema.extend({
   overdueOnly: z.coerce.boolean().optional(),
 });
 
+export const updateWorkflowStatusSchema = z.object({
+  name: z.string().trim().min(2).max(100),
+  customerLabel: z.string().trim().max(100).nullable().optional(),
+  description: z.string().trim().max(1000).nullable().optional(),
+  colorToken: z.enum(WORKFLOW_COLOR_TOKENS),
+  isCustomerVisible: z.boolean(),
+  isTerminal: z.boolean(),
+  defaultDepartmentId: uuidSchema.nullable().optional(),
+});
+
+export const replaceWorkflowTransitionsSchema = z.object({
+  transitions: z.array(
+    z.object({
+      fromStatusId: uuidSchema,
+      toStatusId: uuidSchema,
+      requiredPermission: z.string().trim().max(100).nullable().optional(),
+    }),
+  ),
+});
+
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;
 export type UpdateOrderInput = z.infer<typeof updateOrderSchema>;
+export type UpdateOrderStateInput = z.infer<typeof updateOrderStateSchema>;
 export type AdvanceOrderProgressInput = z.infer<typeof advanceOrderProgressSchema>;
 export type ListOrdersQueryInput = z.infer<typeof listOrdersQuerySchema>;
+export type UpdateWorkflowStatusInput = z.infer<typeof updateWorkflowStatusSchema>;
+export type ReplaceWorkflowTransitionsInput = z.infer<typeof replaceWorkflowTransitionsSchema>;
